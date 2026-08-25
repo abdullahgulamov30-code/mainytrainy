@@ -754,9 +754,13 @@ function renderExerciseCard(w, exItem, exIdx) {
     <textarea class="ex-notes" placeholder="Notes..." data-notes="${exIdx}">${escapeHtml(exItem.notes || '')}</textarea>
   `;
 
+  // ======== HIER IST DER FIX ========
+  // Wechsle von 'change' zu 'input', damit Werte sofort gespeichert werden
   card.querySelectorAll('.set-input').forEach(inp => {
-    inp.addEventListener('change', () => updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value));
+    inp.addEventListener('input', () => updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value));
   });
+  // ==================================
+
   card.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', () => {
       const [exI, sI] = btn.dataset.toggle.split(':').map(Number);
