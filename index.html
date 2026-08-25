@@ -257,7 +257,7 @@ main#view{ padding:20px; padding-bottom:100px; }
   text-align:center;
 }
 .set-input::placeholder{ color:var(--text-muted); font-weight:600; }
-.set-input.done{ border-color:#5FD08A; color:#5FD08A; }
+.set-input.done{ border-color:#5FD08A; color:#5FD08A; }  /* bleibt für evtl. spätere Nutzung */
 .set-actions-cell{ display:flex; gap:8px; align-items:center; }
 .btn-done{
   background:transparent; border:1px solid var(--border); color:var(--text-secondary);
@@ -616,12 +616,17 @@ function renderWorkoutsList() {
   el.querySelector('#newWorkoutBtn').addEventListener('click', openTemplatePicker);
 }
 
+/* ========================= TEMPLATE PICKER (MIT DATUM) ========================= */
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
   sheet.innerHTML = `
     <div class="modal-inner">
       <h3 class="modal-title">Choose a workout</h3>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; letter-spacing:.1em; color:var(--text-muted); font-weight:800; display:block; margin-bottom:6px;">DATE</label>
+        <input type="date" id="newWorkoutDate" class="text-input" style="margin-bottom:0;" value="${new Date().toISOString().slice(0,10)}" />
+      </div>
       <div class="template-grid" id="tplGrid"></div>
     </div>`;
   document.body.appendChild(sheet);
@@ -635,19 +640,22 @@ function openTemplatePicker() {
     card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length ? tpl.exercises.length + ' exercises' : 'Blank workout'}</p></div>
       <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color]}"></span>`;
     card.addEventListener('click', async () => {
+      const dateInput = document.getElementById('newWorkoutDate');
+      const date = dateInput ? dateInput.value : new Date().toISOString().slice(0,10);
       sheet.remove();
-      await createWorkout(name);
+      await createWorkout(name, date);
     });
     grid.appendChild(card);
   });
 }
 
-async function createWorkout(typeName) {
+/* ========================= CREATE WORKOUT MIT DATUM ========================= */
+async function createWorkout(typeName, date) {
   const tpl = TEMPLATES[typeName];
   const exercises = JSON.parse(JSON.stringify(tpl.exercises)); // deep clone, kg/reps stay empty
   const payload = {
     type: typeName,
-    date: new Date().toISOString().slice(0, 10),
+    date: date || new Date().toISOString().slice(0, 10),
     finished: false,
     exercises,
   };
@@ -712,6 +720,7 @@ function renderWorkoutDetail(id) {
   (w.exercises || []).forEach((exItem, exIdx) => list.appendChild(renderExerciseCard(w, exItem, exIdx)));
 }
 
+/* ========================= RENDER EXERCISE CARD (OHNE DONE-BUTTON) ========================= */
 function renderExerciseCard(w, exItem, exIdx) {
   const card = document.createElement('div');
   card.className = 'exercise-card';
@@ -728,10 +737,7 @@ function renderExerciseCard(w, exItem, exIdx) {
         <td class="set-num">${sIdx + 1}${targetNote}</td>
         <td><input class="set-input" data-field="${isDuration ? 'duration' : 'reps'}" data-ex="${exIdx}" data-set="${sIdx}" placeholder="${col1Placeholder}" value="${escapeAttr(col1Val)}" /></td>
         <td><input class="set-input" data-field="kg" data-ex="${exIdx}" data-set="${sIdx}" placeholder="—" value="${escapeAttr(s.kg)}" /></td>
-        <td class="set-actions-cell">
-          <button class="btn-done ${s.done ? 'on' : ''}" data-toggle="${exIdx}:${sIdx}">DONE</button>
-          <button class="set-x" data-removeset="${exIdx}:${sIdx}">×</button>
-        </td>
+        <td><button class="set-x" data-removeset="${exIdx}:${sIdx}">×</button></td>
       </tr>`;
   }).join('');
 
@@ -754,25 +760,26 @@ function renderExerciseCard(w, exItem, exIdx) {
     <textarea class="ex-notes" placeholder="Notes..." data-notes="${exIdx}">${escapeHtml(exItem.notes || '')}</textarea>
   `;
 
-  // **WICHTIG: Wir speichern bei jedem Tastendruck**
+  // Speichern bei jedem Tastendruck (input)
   card.querySelectorAll('.set-input').forEach(inp => {
     inp.addEventListener('input', () => updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value));
   });
 
-  card.querySelectorAll('[data-toggle]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const [exI, sI] = btn.dataset.toggle.split(':').map(Number);
-      toggleSetDone(w, exI, sI);
-    });
-  });
+  // Entfernen eines Sets
   card.querySelectorAll('[data-removeset]').forEach(btn => {
     btn.addEventListener('click', () => {
       const [exI, sI] = btn.dataset.removeset.split(':').map(Number);
       removeSet(w, exI, sI);
     });
   });
+
+  // Set hinzufügen
   card.querySelector('[data-addset]').addEventListener('click', () => addSet(w, exIdx));
+
+  // Exercise entfernen
   card.querySelector('[data-removeex]').addEventListener('click', () => removeExercise(w, exIdx));
+
+  // Notizen
   card.querySelector('[data-notes]').addEventListener('change', (e) => updateExerciseNotes(w, exIdx, e.target.value));
 
   return card;
@@ -806,33 +813,18 @@ async function removeSet(w, exI, sI) {
   render();
 }
 
-// ============ HIER IST DER FIX ============
+/* ========================= ADD SET – FIX (ohne Datenverlust) ========================= */
 async function addSet(w, exI) {
-  // 1. Alle aktuellen Werte aus den Inputs dieser Übung in den State schreiben
+  // 1. Alle aktuellen Werte aus den Inputs dieser Übung sammeln
   const inputs = document.querySelectorAll(`input.set-input[data-ex="${exI}"]`);
-  inputs.forEach(inp => {
-    const setIdx = parseInt(inp.dataset.set);
-    const field = inp.dataset.field;
-    const value = inp.value;
-    // Direkt den State updaten (ohne erneutes Rendern)
-    const exercises = cloneExercises(w);
-    exercises[exI].sets[setIdx][field] = value;
-    // Wir speichern nach der Schleife einmalig
-    // Deshalb merken wir uns die Änderungen in einer Kopie
-    // Da wir aber mehrere Felder pro Satz haben, könnten wir überschreiben.
-    // Besser: Wir sammeln alle Werte und patchen dann einmal.
-    // Vereinfacht: Wir patchen nach jedem Set? Nein, das wäre ineffizient.
-    // Wir bauen uns ein Objekt, das alle neuen Werte enthält.
-  });
-
-  // Besser: Sammle alle Werte und patch einmal
   const newExercises = cloneExercises(w);
-  // Gehe alle Inputs durch und überschreibe die Werte in newExercises
   inputs.forEach(inp => {
     const setIdx = parseInt(inp.dataset.set);
     const field = inp.dataset.field;
     const value = inp.value;
-    newExercises[exI].sets[setIdx][field] = value;
+    if (newExercises[exI] && newExercises[exI].sets[setIdx]) {
+      newExercises[exI].sets[setIdx][field] = value;
+    }
   });
 
   // 2. Neuen leeren Satz hinzufügen
@@ -844,7 +836,6 @@ async function addSet(w, exI) {
   await patchWorkout(w.id, { exercises: newExercises });
   render();
 }
-// ==========================================
 
 async function removeExercise(w, exI) {
   const exercises = cloneExercises(w);
