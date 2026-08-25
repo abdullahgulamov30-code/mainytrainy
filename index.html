@@ -726,8 +726,8 @@ function renderExerciseCard(w, exItem, exIdx) {
     return `
       <tr>
         <td class="set-num">${sIdx + 1}${targetNote}</td>
-        <td><input class="set-input ${s.done ? 'done' : ''}" data-field="${isDuration ? 'duration' : 'reps'}" data-ex="${exIdx}" data-set="${sIdx}" placeholder="${col1Placeholder}" value="${escapeAttr(col1Val)}" /></td>
-        <td><input class="set-input ${s.done ? 'done' : ''}" data-field="kg" data-ex="${exIdx}" data-set="${sIdx}" placeholder="—" value="${escapeAttr(s.kg)}" /></td>
+        <td><input class="set-input" data-field="${isDuration ? 'duration' : 'reps'}" data-ex="${exIdx}" data-set="${sIdx}" placeholder="${col1Placeholder}" value="${escapeAttr(col1Val)}" /></td>
+        <td><input class="set-input" data-field="kg" data-ex="${exIdx}" data-set="${sIdx}" placeholder="—" value="${escapeAttr(s.kg)}" /></td>
         <td class="set-actions-cell">
           <button class="btn-done ${s.done ? 'on' : ''}" data-toggle="${exIdx}:${sIdx}">DONE</button>
           <button class="set-x" data-removeset="${exIdx}:${sIdx}">×</button>
@@ -754,12 +754,10 @@ function renderExerciseCard(w, exItem, exIdx) {
     <textarea class="ex-notes" placeholder="Notes..." data-notes="${exIdx}">${escapeHtml(exItem.notes || '')}</textarea>
   `;
 
-  // ======== HIER IST DER FIX ========
-  // Wechsle von 'change' zu 'input', damit Werte sofort gespeichert werden
+  // **WICHTIG: Wir speichern bei jedem Tastendruck**
   card.querySelectorAll('.set-input').forEach(inp => {
     inp.addEventListener('input', () => updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value));
   });
-  // ==================================
 
   card.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -807,14 +805,47 @@ async function removeSet(w, exI, sI) {
   await patchWorkout(w.id, { exercises });
   render();
 }
+
+// ============ HIER IST DER FIX ============
 async function addSet(w, exI) {
-  const exercises = cloneExercises(w);
-  exercises[exI].sets.push({ reps: '', kg: '', duration: '', done: false });
-  if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
-  exercises[exI].setMeta.push({});
-  await patchWorkout(w.id, { exercises });
+  // 1. Alle aktuellen Werte aus den Inputs dieser Übung in den State schreiben
+  const inputs = document.querySelectorAll(`input.set-input[data-ex="${exI}"]`);
+  inputs.forEach(inp => {
+    const setIdx = parseInt(inp.dataset.set);
+    const field = inp.dataset.field;
+    const value = inp.value;
+    // Direkt den State updaten (ohne erneutes Rendern)
+    const exercises = cloneExercises(w);
+    exercises[exI].sets[setIdx][field] = value;
+    // Wir speichern nach der Schleife einmalig
+    // Deshalb merken wir uns die Änderungen in einer Kopie
+    // Da wir aber mehrere Felder pro Satz haben, könnten wir überschreiben.
+    // Besser: Wir sammeln alle Werte und patchen dann einmal.
+    // Vereinfacht: Wir patchen nach jedem Set? Nein, das wäre ineffizient.
+    // Wir bauen uns ein Objekt, das alle neuen Werte enthält.
+  });
+
+  // Besser: Sammle alle Werte und patch einmal
+  const newExercises = cloneExercises(w);
+  // Gehe alle Inputs durch und überschreibe die Werte in newExercises
+  inputs.forEach(inp => {
+    const setIdx = parseInt(inp.dataset.set);
+    const field = inp.dataset.field;
+    const value = inp.value;
+    newExercises[exI].sets[setIdx][field] = value;
+  });
+
+  // 2. Neuen leeren Satz hinzufügen
+  newExercises[exI].sets.push({ reps: '', kg: '', duration: '', done: false });
+  if (!newExercises[exI].setMeta) newExercises[exI].setMeta = [];
+  newExercises[exI].setMeta.push({});
+
+  // 3. Alles auf einmal speichern
+  await patchWorkout(w.id, { exercises: newExercises });
   render();
 }
+// ==========================================
+
 async function removeExercise(w, exI) {
   const exercises = cloneExercises(w);
   exercises.splice(exI, 1);
