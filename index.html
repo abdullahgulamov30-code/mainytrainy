@@ -53,6 +53,11 @@ button, input, textarea, select{ font-family:inherit; }
   color:var(--gold-strong);
   margin:0;
 }
+.topbar-right{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
 .btn-outline{
   background:transparent;
   border:1.5px solid var(--gold);
@@ -67,6 +72,40 @@ button, input, textarea, select{ font-family:inherit; }
 }
 .btn-outline.small{ padding:10px 16px; }
 .btn-outline:hover{ background:var(--gold); color:#221B12; }
+
+/* SAVE SPINNER */
+.spinner-container {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--border);
+  border-top: 2.5px solid var(--gold-strong);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.spinner-container.saved {
+  border: none;
+}
+.spinner-container.saved .spinner {
+  display: none;
+}
+.spinner-container.saved::after {
+  content: "✓";
+  color: #5FD08A;
+  font-size: 18px;
+  font-weight: 900;
+}
+
 .status-bar{
   text-align:center;
   padding:10px 0;
@@ -403,7 +442,10 @@ main#view{ padding:20px; padding-bottom:100px; }
 
 <header class="topbar">
   <h1 class="logo">MAINY&nbsp;TRAINY</h1>
-  <button id="timerBtn" class="btn-outline small">TIMER</button>
+  <div class="topbar-right">
+    <div id="saveIndicator" class="spinner-container"><div class="spinner"></div></div>
+    <button id="timerBtn" class="btn-outline small">TIMER</button>
+  </div>
 </header>
 
 <div id="statusBar" class="status-bar offline">
@@ -496,7 +538,37 @@ let currentWorkoutId = null;
 let calMonth = new Date();
 let online = navigator.onLine;
 let chartInstance = null;
-let isSaving = false;
+let saveTimeout = null;
+
+// SAVE INDICATOR FUNCTIONS
+function showSaving(showCheck = false) {
+  const el = document.getElementById('saveIndicator');
+  el.classList.remove('saved');
+  el.style.display = 'flex';
+  if (saveTimeout) clearTimeout(saveTimeout);
+}
+function hideSaving(showCheck = false) {
+  const el = document.getElementById('saveIndicator');
+  if (showCheck) {
+    el.classList.add('saved');
+    el.style.display = 'flex';
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      el.style.display = 'none';
+      el.classList.remove('saved');
+    }, 1000);
+  } else {
+    el.style.display = 'none';
+    el.classList.remove('saved');
+  }
+}
+function triggerSaveIndicator() {
+  showSaving();
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    hideSaving(true);
+  }, 500);
+}
 
 init();
 
@@ -505,7 +577,6 @@ async function init() {
   window.addEventListener('online', () => { online = true; updateStatus(); loadWorkouts(); });
   window.addEventListener('offline', () => { online = false; updateStatus(); });
   
-  // 🔥 AUTOMATISCH SPEICHERN BEIM TAB-WECHSEL
   document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', async () => {
       await saveCurrentWorkoutIfNeeded();
@@ -513,7 +584,6 @@ async function init() {
     });
   });
   
-  // 🔥 AUTOMATISCH SPEICHERN BEIM SEITE VERLASSEN
   window.addEventListener('beforeunload', async () => {
     await saveCurrentWorkoutIfNeeded();
   });
@@ -527,7 +597,6 @@ async function init() {
   render();
 }
 
-// 🔥 NEUE FUNKTION: Speichert das aktuelle Workout, falls eins offen ist
 async function saveCurrentWorkoutIfNeeded() {
   if (!currentWorkoutId) return;
   const w = workouts.find(x => x.id === currentWorkoutId);
@@ -708,7 +777,6 @@ function renderWorkoutDetail(id) {
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
 
-  // 🔥 BACK BUTTON SPEICHERT VORHER
   document.getElementById('backBtn').addEventListener('click', async () => {
     await saveCurrentWorkoutIfNeeded();
     currentWorkoutId = null;
@@ -746,8 +814,8 @@ function renderWorkoutDetail(id) {
 }
 
 async function saveAllInputs(w) {
-  if (!w || isSaving) return;
-  isSaving = true;
+  if (!w) return;
+  showSaving();
   try {
     const inputs = document.querySelectorAll('input.set-input');
     const exercises = JSON.parse(JSON.stringify(w.exercises || []));
@@ -781,10 +849,11 @@ async function saveAllInputs(w) {
     const idx = workouts.findIndex(x => x.id === w.id);
     if (idx > -1) workouts[idx].exercises = exercises;
     await patchWorkout(w.id, { exercises });
+    hideSaving(true);
   } catch (e) {
     console.error('Fehler beim Speichern:', e);
+    hideSaving(false);
   }
-  isSaving = false;
 }
 
 function renderExerciseCard(w, exItem, exIdx) {
@@ -851,12 +920,15 @@ function renderExerciseCard(w, exItem, exIdx) {
 
   card.querySelectorAll('.set-input, .set-rpe, .set-note-input').forEach(inp => {
     inp.addEventListener('input', () => {
-      if (inp.classList.contains('set-input') && inp.dataset.field) {
-        updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value);
-      } else if (inp.classList.contains('set-rpe')) {
-        updateSetField(w, +inp.dataset.ex, +inp.dataset.set, 'rpe', inp.value);
-      } else if (inp.classList.contains('set-note-input')) {
-        updateSetField(w, +inp.dataset.ex, +inp.dataset.set, 'setNotes', inp.value);
+      const exI = parseInt(inp.dataset.ex);
+      const setIdx = parseInt(inp.dataset.set);
+      let field = inp.dataset.field;
+      if (!field) {
+        if (inp.classList.contains('set-rpe')) field = 'rpe';
+        else if (inp.classList.contains('set-note-input')) field = 'setNotes';
+      }
+      if (field) {
+        updateSetField(w, exI, setIdx, field, inp.value);
       }
     });
   });
@@ -876,51 +948,92 @@ function renderExerciseCard(w, exItem, exIdx) {
 }
 
 async function patchWorkout(id, patch) {
-  const { data, error } = await supabase.from('workouts').update(patch).eq('id', id).select().single();
-  if (error) { console.error(error); return; }
-  const idx = workouts.findIndex(x => x.id === id);
-  if (idx > -1) workouts[idx] = data;
+  triggerSaveIndicator();
+  try {
+    const { data, error } = await supabase.from('workouts').update(patch).eq('id', id).select().single();
+    if (error) { console.error(error); return; }
+    const idx = workouts.findIndex(x => x.id === id);
+    if (idx > -1) workouts[idx] = data;
+  } finally {
+    // Sicherheitshalber nach 2 Sekunden ausblenden, falls es hängt
+    setTimeout(() => hideSaving(true), 2000);
+  }
 }
 
 function cloneExercises(w) { return JSON.parse(JSON.stringify(w.exercises || [])); }
 
 async function updateSetField(w, exI, sI, field, value) {
-  const exercises = cloneExercises(w);
-  if (!exercises[exI] || !exercises[exI].sets[sI]) return;
-  exercises[exI].sets[sI][field] = value;
-  await patchWorkout(w.id, { exercises });
+  // 1. Lokalen State SOFORT synchron aktualisieren (für "ADD SET" etc.)
+  const idx = workouts.findIndex(x => x.id === w.id);
+  if (idx > -1) {
+    if (!workouts[idx].exercises[exI] || !workouts[idx].exercises[exI].sets[sI]) return;
+    workouts[idx].exercises[exI].sets[sI][field] = value;
+  }
+  // 2. Supabase im Hintergrund aktualisieren (mit Spinner)
+  triggerSaveIndicator();
+  try {
+    const exercises = cloneExercises(w);
+    if (!exercises[exI] || !exercises[exI].sets[sI]) return;
+    exercises[exI].sets[sI][field] = value;
+    await patchWorkout(w.id, { exercises });
+  } catch (e) { console.error(e); }
 }
 
 async function removeSet(w, exI, sI) {
-  const exercises = cloneExercises(w);
-  exercises[exI].sets.splice(sI, 1);
-  if (exercises[exI].setMeta) exercises[exI].setMeta.splice(sI, 1);
-  await patchWorkout(w.id, { exercises });
+  const idx = workouts.findIndex(x => x.id === w.id);
+  if (idx > -1) {
+    workouts[idx].exercises[exI].sets.splice(sI, 1);
+    if (workouts[idx].exercises[exI].setMeta) workouts[idx].exercises[exI].setMeta.splice(sI, 1);
+  }
+  triggerSaveIndicator();
+  try {
+    const exercises = cloneExercises(w);
+    exercises[exI].sets.splice(sI, 1);
+    if (exercises[exI].setMeta) exercises[exI].setMeta.splice(sI, 1);
+    await patchWorkout(w.id, { exercises });
+  } catch (e) { console.error(e); }
   render();
 }
 
-// 🔥 GEFIXTE ADD SET FUNKTION
 async function addSet(w, exI) {
-  const exercises = cloneExercises(w);
-  const currentSets = exercises[exI].sets;
-  currentSets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
+  // Lokalen State SOFORT synchron aktualisieren
+  const idx = workouts.findIndex(x => x.id === w.id);
+  if (idx === -1) return;
+  const exercises = workouts[idx].exercises;
+  if (!exercises[exI]) return;
+  exercises[exI].sets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
   if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
   exercises[exI].setMeta.push({});
-  await patchWorkout(w.id, { exercises });
+  
+  // Supabase im Hintergrund synchronisieren
+  triggerSaveIndicator();
+  try {
+    await patchWorkout(w.id, { exercises });
+  } catch (e) { console.error(e); }
   render();
 }
 
 async function removeExercise(w, exI) {
-  const exercises = cloneExercises(w);
-  exercises.splice(exI, 1);
-  await patchWorkout(w.id, { exercises });
+  const idx = workouts.findIndex(x => x.id === w.id);
+  if (idx > -1) workouts[idx].exercises.splice(exI, 1);
+  triggerSaveIndicator();
+  try {
+    const exercises = cloneExercises(w);
+    exercises.splice(exI, 1);
+    await patchWorkout(w.id, { exercises });
+  } catch (e) { console.error(e); }
   render();
 }
 
 async function updateExerciseNotes(w, exI, notes) {
-  const exercises = cloneExercises(w);
-  if (exercises[exI]) exercises[exI].notes = notes;
-  await patchWorkout(w.id, { exercises });
+  const idx = workouts.findIndex(x => x.id === w.id);
+  if (idx > -1 && workouts[idx].exercises[exI]) workouts[idx].exercises[exI].notes = notes;
+  triggerSaveIndicator();
+  try {
+    const exercises = cloneExercises(w);
+    if (exercises[exI]) exercises[exI].notes = notes;
+    await patchWorkout(w.id, { exercises });
+  } catch (e) { console.error(e); }
 }
 
 function getPreviousWorkoutWithExercise(currentWorkout, exerciseName) {
