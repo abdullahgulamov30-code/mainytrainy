@@ -720,38 +720,18 @@ function openTemplatePicker() {
     card.className = 'template-card';
     card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length ? tpl.exercises.length + ' exercises' : 'Blank'}</p></div>
       <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color]}"></span>`;
-    
-    // 🔥 NEU: Für "Custom" wird nach einem Namen gefragt
     card.addEventListener('click', async () => {
       const dateInput = document.getElementById('newWorkoutDate');
       const date = dateInput ? dateInput.value : new Date().toISOString().slice(0,10);
-      let workoutName = name;
-      
-      // Wenn Custom, dann Namen abfragen
-      if (name === 'Custom') {
-        workoutName = prompt('Gib den Namen für dein Workout ein:', 'Mein Workout');
-        if (!workoutName || workoutName.trim() === '') {
-          return; // Abgebrochen oder leer -> nichts tun
-        }
-        workoutName = workoutName.trim();
-      }
-      
       sheet.remove();
-      await createWorkout(workoutName, date);
+      await createWorkout(name, date);
     });
-    
     grid.appendChild(card);
   });
 }
 
 async function createWorkout(typeName, date) {
-  // Falls es ein Custom-Name ist, schauen wir ob es den schon als Template gibt
-  // – wenn nicht, nehmen wir "Custom" als Basis
-  let tpl = TEMPLATES[typeName];
-  if (!tpl) {
-    // Wenn der Name nicht in TEMPLATES ist, nehmen wir Custom als Basis
-    tpl = TEMPLATES['Custom'];
-  }
+  const tpl = TEMPLATES[typeName];
   const exercises = JSON.parse(JSON.stringify(tpl.exercises));
   const payload = {
     type: typeName,
@@ -815,18 +795,24 @@ function renderWorkoutDetail(id) {
     render();
   });
 
+  // 🔥 GEFIXTER ADD EXERCISE BUTTON
   document.getElementById('addExBtn').addEventListener('click', async () => {
     const name = document.getElementById('newExName').value.trim();
     const type = document.getElementById('newExType').value;
     const group = document.getElementById('newExGroup').value.trim();
     if (!name) return;
 
+    // 1. ALLE aktuellen Werte VOR dem Hinzufügen speichern
     await saveAllInputs(w);
+
+    // 2. Neue Übung aus dem FRISCHEN State hinzufügen
     const freshWorkout = workouts.find(x => x.id === w.id);
     if (!freshWorkout) return;
     const newEx = ex(name, type, [{}]);
     newEx.group = group;
     const exercises = [...(freshWorkout.exercises || []), { ...newEx, setMeta: [{}] }];
+    
+    // 3. Speichern und neu rendern
     await patchWorkout(w.id, { exercises });
     render();
   });
