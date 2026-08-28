@@ -496,6 +496,7 @@ let currentWorkoutId = null;
 let calMonth = new Date();
 let online = navigator.onLine;
 let chartInstance = null;
+let isSaving = false;
 
 init();
 
@@ -503,9 +504,18 @@ async function init() {
   updateStatus();
   window.addEventListener('online', () => { online = true; updateStatus(); loadWorkouts(); });
   window.addEventListener('offline', () => { online = false; updateStatus(); });
-
+  
+  // 🔥 AUTOMATISCH SPEICHERN BEIM TAB-WECHSEL
   document.querySelectorAll('.tab').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('click', async () => {
+      await saveCurrentWorkoutIfNeeded();
+      switchTab(btn.dataset.tab);
+    });
+  });
+  
+  // 🔥 AUTOMATISCH SPEICHERN BEIM SEITE VERLASSEN
+  window.addEventListener('beforeunload', async () => {
+    await saveCurrentWorkoutIfNeeded();
   });
 
   document.getElementById('timerBtn').addEventListener('click', openTimer);
@@ -515,6 +525,14 @@ async function init() {
 
   await loadWorkouts();
   render();
+}
+
+// 🔥 NEUE FUNKTION: Speichert das aktuelle Workout, falls eins offen ist
+async function saveCurrentWorkoutIfNeeded() {
+  if (!currentWorkoutId) return;
+  const w = workouts.find(x => x.id === currentWorkoutId);
+  if (!w) return;
+  await saveAllInputs(w);
 }
 
 function updateStatus() {
@@ -690,7 +708,13 @@ function renderWorkoutDetail(id) {
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
 
-  document.getElementById('backBtn').addEventListener('click', () => { currentWorkoutId = null; render(); });
+  // 🔥 BACK BUTTON SPEICHERT VORHER
+  document.getElementById('backBtn').addEventListener('click', async () => {
+    await saveCurrentWorkoutIfNeeded();
+    currentWorkoutId = null;
+    render();
+  });
+  
   document.getElementById('deleteWBtn').addEventListener('click', async () => {
     if (!confirm('Löschen?')) return;
     await supabase.from('workouts').delete().eq('id', w.id);
@@ -722,38 +746,45 @@ function renderWorkoutDetail(id) {
 }
 
 async function saveAllInputs(w) {
-  const inputs = document.querySelectorAll('input.set-input');
-  const exercises = JSON.parse(JSON.stringify(w.exercises || []));
-  inputs.forEach(inp => {
-    const exI = parseInt(inp.dataset.ex);
-    const setIdx = parseInt(inp.dataset.set);
-    const field = inp.dataset.field;
-    const value = inp.value;
-    if (exercises[exI] && exercises[exI].sets[setIdx]) {
-      exercises[exI].sets[setIdx][field] = value;
-    }
-  });
-  document.querySelectorAll('input.set-rpe').forEach(inp => {
-    const exI = parseInt(inp.dataset.ex);
-    const setIdx = parseInt(inp.dataset.set);
-    if (exercises[exI] && exercises[exI].sets[setIdx]) {
-      exercises[exI].sets[setIdx].rpe = inp.value;
-    }
-  });
-  document.querySelectorAll('input.set-note-input').forEach(inp => {
-    const exI = parseInt(inp.dataset.ex);
-    const setIdx = parseInt(inp.dataset.set);
-    if (exercises[exI] && exercises[exI].sets[setIdx]) {
-      exercises[exI].sets[setIdx].setNotes = inp.value;
-    }
-  });
-  document.querySelectorAll('textarea.ex-notes').forEach(ta => {
-    const exI = parseInt(ta.dataset.notes);
-    if (exercises[exI]) exercises[exI].notes = ta.value;
-  });
-  const idx = workouts.findIndex(x => x.id === w.id);
-  if (idx > -1) workouts[idx].exercises = exercises;
-  await patchWorkout(w.id, { exercises });
+  if (!w || isSaving) return;
+  isSaving = true;
+  try {
+    const inputs = document.querySelectorAll('input.set-input');
+    const exercises = JSON.parse(JSON.stringify(w.exercises || []));
+    inputs.forEach(inp => {
+      const exI = parseInt(inp.dataset.ex);
+      const setIdx = parseInt(inp.dataset.set);
+      const field = inp.dataset.field;
+      const value = inp.value;
+      if (exercises[exI] && exercises[exI].sets[setIdx]) {
+        exercises[exI].sets[setIdx][field] = value;
+      }
+    });
+    document.querySelectorAll('input.set-rpe').forEach(inp => {
+      const exI = parseInt(inp.dataset.ex);
+      const setIdx = parseInt(inp.dataset.set);
+      if (exercises[exI] && exercises[exI].sets[setIdx]) {
+        exercises[exI].sets[setIdx].rpe = inp.value;
+      }
+    });
+    document.querySelectorAll('input.set-note-input').forEach(inp => {
+      const exI = parseInt(inp.dataset.ex);
+      const setIdx = parseInt(inp.dataset.set);
+      if (exercises[exI] && exercises[exI].sets[setIdx]) {
+        exercises[exI].sets[setIdx].setNotes = inp.value;
+      }
+    });
+    document.querySelectorAll('textarea.ex-notes').forEach(ta => {
+      const exI = parseInt(ta.dataset.notes);
+      if (exercises[exI]) exercises[exI].notes = ta.value;
+    });
+    const idx = workouts.findIndex(x => x.id === w.id);
+    if (idx > -1) workouts[idx].exercises = exercises;
+    await patchWorkout(w.id, { exercises });
+  } catch (e) {
+    console.error('Fehler beim Speichern:', e);
+  }
+  isSaving = false;
 }
 
 function renderExerciseCard(w, exItem, exIdx) {
@@ -868,18 +899,13 @@ async function removeSet(w, exI, sI) {
   render();
 }
 
-// 🔥 HIER IST DER GEFIXTE ADD SET – speichert jetzt automatisch ALLE Werte
+// 🔥 GEFIXTE ADD SET FUNKTION
 async function addSet(w, exI) {
-  // 1. Alle aktuellen Werte aus dem STATE holen (nicht aus dem DOM!)
   const exercises = cloneExercises(w);
   const currentSets = exercises[exI].sets;
-  
-  // 2. Neuen leeren Satz hinzufügen
   currentSets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
   if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
   exercises[exI].setMeta.push({});
-  
-  // 3. Speichern
   await patchWorkout(w.id, { exercises });
   render();
 }
