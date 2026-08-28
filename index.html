@@ -7,10 +7,8 @@
 <title>MainyTrainy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
-<!-- Chart.js für die Grafiken -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* ===== MainyTrainy — Tokens ===== */
 :root{
   --bg: #221B12;
   --bg-elevated: #2E2517;
@@ -32,9 +30,7 @@
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, sans-serif;
 }
-
 *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-
 html,body{
   margin:0; padding:0;
   background:var(--bg);
@@ -45,7 +41,6 @@ html,body{
   min-height:100vh;
 }
 button, input, textarea, select{ font-family:inherit; }
-
 .topbar{
   display:flex; align-items:center; justify-content:space-between;
   padding:22px 20px 14px;
@@ -72,7 +67,6 @@ button, input, textarea, select{ font-family:inherit; }
 }
 .btn-outline.small{ padding:10px 16px; }
 .btn-outline:hover{ background:var(--gold); color:#221B12; }
-
 .status-bar{
   text-align:center;
   padding:10px 0;
@@ -88,7 +82,6 @@ button, input, textarea, select{ font-family:inherit; }
   background:var(--red); margin-right:8px;
 }
 .status-bar.online .dot{ background:#5FD08A; }
-
 .tabs{ display:flex; }
 .tab{
   flex:1;
@@ -106,9 +99,7 @@ button, input, textarea, select{ font-family:inherit; }
   color:var(--gold-strong);
   border-bottom-color:var(--gold);
 }
-
 main#view{ padding:20px; padding-bottom:100px; }
-
 .section-label{
   text-transform:uppercase;
   letter-spacing:.14em;
@@ -120,7 +111,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   justify-content:space-between;
   align-items:center;
 }
-
 .workout-card{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -149,19 +139,15 @@ main#view{ padding:20px; padding-bottom:100px; }
   border:none; border-top:2px solid var(--gold);
   opacity:.85; margin:14px 0 10px;
 }
-.workout-card .delete-row{
-  text-align:right;
-}
+.workout-card .delete-row{ text-align:right; }
 .type-pip{
   display:inline-block; width:10px; height:10px; border-radius:50%;
   margin-right:8px; vertical-align:middle;
 }
-
 .btn-danger-text{
   background:none; border:none; color:var(--danger);
   font-weight:800; letter-spacing:.1em; font-size:13px; cursor:pointer; padding:6px 0;
 }
-
 .btn-gold{
   display:block; width:100%;
   background:var(--gold);
@@ -187,7 +173,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   font-size:14.5px;
   cursor:pointer;
 }
-
 .detail-header{
   display:flex; align-items:center; justify-content:space-between;
   margin-bottom:18px;
@@ -200,7 +185,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   font-family:var(--font-display); font-weight:800; font-size:20px; margin-left:8px;
 }
 .title-row{ display:flex; align-items:center; }
-
 .exercise-card{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -209,7 +193,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   margin-bottom:16px;
   position:relative;
 }
-/* Superset-Visual: linke Border */
 .exercise-card.superset-group{
   border-left: 6px solid var(--gold);
 }
@@ -228,8 +211,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 }
 .exercise-actions{ display:flex; align-items:center; gap:14px; }
 .remove-link{ background:none; border:none; color:var(--danger); font-weight:800; font-size:12.5px; letter-spacing:.06em; cursor:pointer; }
-.collapse-btn{ background:none;border:none;color:var(--gold); font-size:15px; cursor:pointer; }
-
 .set-table{ width:100%; border-collapse:collapse; margin-top:12px; }
 .set-table th{
   text-align:left; font-size:11px; letter-spacing:.06em; color:var(--text-muted);
@@ -298,7 +279,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   min-height:36px;
 }
 .ex-notes::placeholder{ color:var(--text-muted); }
-
 .add-exercise-box{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -323,7 +303,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 .text-input::placeholder{ color:var(--text-muted); font-style:italic; font-weight:600; }
 .row-flex{ display:flex; gap:10px; }
 .row-flex .text-input{ margin-bottom:0; }
-
 .template-grid{ display:grid; gap:14px; }
 .template-card{
   background:var(--bg-card);
@@ -337,7 +316,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 .template-card h4{ font-family:var(--font-display); font-size:19px; margin:0 0 4px; }
 .template-card p{ margin:0; color:var(--text-secondary); font-size:13px; font-weight:700; }
 .template-swatch{ width:14px; height:14px; border-radius:50%; flex-shrink:0; }
-
 .cal-header{
   display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;
 }
@@ -365,7 +343,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 .cal-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:22px; }
 .legend-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-secondary); font-weight:700; }
 .legend-swatch{ width:13px; height:13px; border-radius:4px; }
-
 .stat-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
 .stat-box{
   background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
@@ -375,7 +352,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 .stat-box .stat-value{ font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--gold-strong); }
 .stat-section-title{ font-weight:800; font-size:14px; color:var(--text-secondary); margin:20px 0 4px; letter-spacing:.04em; }
 .empty-state{ color:var(--text-muted); font-weight:700; text-align:center; padding:40px 10px; font-size:14.5px; }
-
 .best-row{
   display:flex; flex-wrap:wrap; gap:12px; margin:8px 0 12px;
   background:var(--bg-elevated); padding:10px 14px; border-radius:6px;
@@ -385,13 +361,11 @@ main#view{ padding:20px; padding-bottom:100px; }
   font-size:13px; font-weight:700; color:var(--text-secondary);
 }
 .best-item strong{ color:var(--gold-strong); font-family:var(--font-display); font-weight:900; }
-
 .chart-container{
   background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
   padding:16px; margin-top:16px;
 }
 .chart-container canvas{ max-height:200px; width:100% !important; }
-
 .overlay{
   position:fixed; inset:0; background:rgba(20,15,8,.85);
   display:flex; align-items:center; justify-content:center; z-index:50;
@@ -406,7 +380,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 }
 .timer-controls{ display:flex; gap:10px; margin-bottom:14px; }
 .btn-text{ background:none; border:none; color:var(--text-muted); font-weight:700; cursor:pointer; }
-
 .modal-sheet{
   position:fixed; inset:0; z-index:60;
   background:rgba(20,15,8,.85);
@@ -420,7 +393,6 @@ main#view{ padding:20px; padding-bottom:100px; }
   border-top:1px solid var(--border);
 }
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 18px; }
-
 @media (min-width: 720px){
   main#view{ max-width:640px; margin:0 auto; }
   .topbar, .status-bar, .tabs{ max-width:640px; margin:0 auto; }
@@ -446,7 +418,6 @@ main#view{ padding:20px; padding-bottom:100px; }
 
 <main id="view"></main>
 
-<!-- Timer overlay -->
 <div id="timerOverlay" class="overlay hidden">
   <div class="timer-box">
     <div id="timerDisplay" class="timer-display">00:00</div>
@@ -465,9 +436,6 @@ const SUPABASE_URL = "https://sysfeilongpxoyjxkzpq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5c2ZlaWxvbmdweG95anhrenBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MDc4MDAsImV4cCI6MjEwMzE4MzgwMH0.i7B1UdiRLeLEQnkznaKomfccXbfxHbu_n5mOnX1IeWg";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* =========================================================
-   TEMPLATES
-   ========================================================= */
 const TEMPLATES = {
   Pull: {
     color: 'blue',
@@ -514,7 +482,7 @@ function ex(name, inputType, setDefs, note) {
     sets: setDefs.map(() => ({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' })),
     setMeta: setDefs,
     notes: '',
-    group: '', // Superset-Gruppe
+    group: '',
   };
 }
 
@@ -522,7 +490,6 @@ const TYPE_COLORS = {
   blue: '#5B8DEF', red: '#E15B4D', yellow: '#E7C93A', orange: '#EF9548', gray: '#8A7A56',
 };
 
-/* ========================= STATE ========================= */
 let workouts = [];
 let currentTab = 'workouts';
 let currentWorkoutId = null;
@@ -530,7 +497,6 @@ let calMonth = new Date();
 let online = navigator.onLine;
 let chartInstance = null;
 
-/* ========================= INIT ========================= */
 init();
 
 async function init() {
@@ -583,7 +549,6 @@ function render() {
   if (currentTab === 'analysis') return renderAnalysis();
 }
 
-/* ========================= WORKOUTS LIST (mit Export) ========================= */
 function renderWorkoutsList() {
   const el = document.getElementById('view');
   el.innerHTML = `
@@ -634,7 +599,6 @@ function renderWorkoutsList() {
   el.querySelector('#newWorkoutBtn').addEventListener('click', openTemplatePicker);
 }
 
-/* ========================= EXPORT ========================= */
 function exportData() {
   if (!workouts.length) { alert('Keine Daten zum Exportieren.'); return; }
   const dataStr = JSON.stringify(workouts, null, 2);
@@ -649,7 +613,6 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-/* ========================= TEMPLATE PICKER ========================= */
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -698,7 +661,6 @@ async function createWorkout(typeName, date) {
   render();
 }
 
-/* ========================= WORKOUT DETAIL ========================= */
 function renderWorkoutDetail(id) {
   const w = workouts.find(x => x.id === id);
   const el = document.getElementById('view');
@@ -756,12 +718,9 @@ function renderWorkoutDetail(id) {
   });
 
   const list = document.getElementById('exList');
-  // Gruppieren für Superset-Visual: falls group gesetzt, gleiche Gruppen zusammenhalten
-  const exList = w.exercises || [];
-  exList.forEach((exItem, exIdx) => list.appendChild(renderExerciseCard(w, exItem, exIdx)));
+  (w.exercises || []).forEach((exItem, exIdx) => list.appendChild(renderExerciseCard(w, exItem, exIdx)));
 }
 
-/* ========================= HELPER: Alle Inputs speichern ========================= */
 async function saveAllInputs(w) {
   const inputs = document.querySelectorAll('input.set-input');
   const exercises = JSON.parse(JSON.stringify(w.exercises || []));
@@ -774,7 +733,6 @@ async function saveAllInputs(w) {
       exercises[exI].sets[setIdx][field] = value;
     }
   });
-  // RPE
   document.querySelectorAll('input.set-rpe').forEach(inp => {
     const exI = parseInt(inp.dataset.ex);
     const setIdx = parseInt(inp.dataset.set);
@@ -782,7 +740,6 @@ async function saveAllInputs(w) {
       exercises[exI].sets[setIdx].rpe = inp.value;
     }
   });
-  // Set Notes
   document.querySelectorAll('input.set-note-input').forEach(inp => {
     const exI = parseInt(inp.dataset.ex);
     const setIdx = parseInt(inp.dataset.set);
@@ -790,7 +747,6 @@ async function saveAllInputs(w) {
       exercises[exI].sets[setIdx].setNotes = inp.value;
     }
   });
-  // Exercise Notes
   document.querySelectorAll('textarea.ex-notes').forEach(ta => {
     const exI = parseInt(ta.dataset.notes);
     if (exercises[exI]) exercises[exI].notes = ta.value;
@@ -800,20 +756,17 @@ async function saveAllInputs(w) {
   await patchWorkout(w.id, { exercises });
 }
 
-/* ========================= RENDER EXERCISE CARD (VOLL AUSGEBAUT) ========================= */
 function renderExerciseCard(w, exItem, exIdx) {
   const card = document.createElement('div');
   card.className = 'exercise-card';
   const isDuration = exItem.inputType === 'duration';
   const col1 = isDuration ? 'Duration' : 'Reps';
 
-  // Superset-Visual: wenn group gesetzt, linke Border färben
   if (exItem.group && exItem.group.trim() !== '') {
     card.classList.add('superset-group');
     card.style.borderLeftColor = 'var(--gold)';
   }
 
-  // Vergleichswerte (letztes Training)
   let prevReps = '', prevKg = '', prevDur = '';
   const prevWorkout = getPreviousWorkoutWithExercise(w, exItem.name);
   if (prevWorkout) {
@@ -865,10 +818,8 @@ function renderExerciseCard(w, exItem, exIdx) {
     <textarea class="ex-notes" placeholder="Exercise Notes..." data-notes="${exIdx}">${escapeHtml(exItem.notes || '')}</textarea>
   `;
 
-  // Event-Bindings
   card.querySelectorAll('.set-input, .set-rpe, .set-note-input').forEach(inp => {
     inp.addEventListener('input', () => {
-      // Nur für normale Felder, die direkt in updateSetField gehen
       if (inp.classList.contains('set-input') && inp.dataset.field) {
         updateSetField(w, +inp.dataset.ex, +inp.dataset.set, inp.dataset.field, inp.value);
       } else if (inp.classList.contains('set-rpe')) {
@@ -893,7 +844,6 @@ function renderExerciseCard(w, exItem, exIdx) {
   return card;
 }
 
-/* ========================= DATENBANK-HELPER ========================= */
 async function patchWorkout(id, patch) {
   const { data, error } = await supabase.from('workouts').update(patch).eq('id', id).select().single();
   if (error) { console.error(error); return; }
@@ -918,19 +868,18 @@ async function removeSet(w, exI, sI) {
   render();
 }
 
+// 🔥 HIER IST DER GEFIXTE ADD SET – speichert jetzt automatisch ALLE Werte
 async function addSet(w, exI) {
-  const inputs = document.querySelectorAll(`input.set-input[data-ex="${exI}"], input.set-rpe[data-ex="${exI}"], input.set-note-input[data-ex="${exI}"]`);
+  // 1. Alle aktuellen Werte aus dem STATE holen (nicht aus dem DOM!)
   const exercises = cloneExercises(w);
-  inputs.forEach(inp => {
-    const setIdx = parseInt(inp.dataset.set);
-    const field = inp.dataset.field || (inp.classList.contains('set-rpe') ? 'rpe' : inp.classList.contains('set-note-input') ? 'setNotes' : '');
-    if (field && exercises[exI] && exercises[exI].sets[setIdx]) {
-      exercises[exI].sets[setIdx][field] = inp.value;
-    }
-  });
-  exercises[exI].sets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
+  const currentSets = exercises[exI].sets;
+  
+  // 2. Neuen leeren Satz hinzufügen
+  currentSets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
   if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
   exercises[exI].setMeta.push({});
+  
+  // 3. Speichern
   await patchWorkout(w.id, { exercises });
   render();
 }
@@ -941,13 +890,13 @@ async function removeExercise(w, exI) {
   await patchWorkout(w.id, { exercises });
   render();
 }
+
 async function updateExerciseNotes(w, exI, notes) {
   const exercises = cloneExercises(w);
   if (exercises[exI]) exercises[exI].notes = notes;
   await patchWorkout(w.id, { exercises });
 }
 
-/* ========================= COMPARISON HELPER ========================= */
 function getPreviousWorkoutWithExercise(currentWorkout, exerciseName) {
   const currentDate = currentWorkout.date;
   let prev = null;
@@ -963,7 +912,6 @@ function getPreviousWorkoutWithExercise(currentWorkout, exerciseName) {
   return prev;
 }
 
-/* ========================= CALENDAR ========================= */
 function renderCalendar() {
   const el = document.getElementById('view');
   const year = calMonth.getFullYear();
@@ -1020,7 +968,6 @@ function renderCalendar() {
   }
 }
 
-/* ========================= ANALYSIS (mit CHART) ========================= */
 function allKnownExerciseNames() {
   const names = new Set();
   Object.values(TEMPLATES).forEach(t => t.exercises.forEach(e => names.add(e.name)));
@@ -1048,9 +995,8 @@ function renderStatsFor(name) {
 
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-  // Daten sammeln
   const sets = [];
-  const history = []; // für Chart: {date, kg, volume, oneRM}
+  const history = [];
   workouts.forEach(w => {
     (w.exercises || []).forEach(exItem => {
       if (exItem.name !== name) return;
@@ -1078,7 +1024,6 @@ function renderStatsFor(name) {
     return;
   }
 
-  // Bestleistungen
   let maxKg = 0, maxVol = 0, maxReps = 0, max1RM = 0;
   let best1RMSet = null;
   sets.forEach(s => {
@@ -1110,15 +1055,12 @@ function renderStatsFor(name) {
     html += `<div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">💪 Best 1RM am ${formatDate(best1RMSet.date)}: ${Math.round(best1RMSet.kg)} kg × ${best1RMSet.reps} reps → ${Math.round(max1RM)} kg</div>`;
   }
 
-  // CHART einbauen
   html += `<div class="chart-container"><canvas id="progChart"></canvas></div>`;
   out.innerHTML = html;
 
-  // Chart zeichnen
   setTimeout(() => {
     const ctx = document.getElementById('progChart')?.getContext('2d');
     if (!ctx) return;
-    // Gruppiere nach Datum (mittelwert pro Datum für kg)
     const map = {};
     history.forEach(h => {
       if (!map[h.date]) map[h.date] = { kgSum: 0, count: 0, oneRMSum: 0, oneRMCnt: 0, volumeSum: 0, volumeCnt: 0 };
@@ -1169,7 +1111,6 @@ function statBlock(label, arr) {
 }
 function trim(n) { return Math.round(n * 10) / 10; }
 
-/* ========================= TIMER ========================= */
 let timerSeconds = 0, timerRunning = false, timerInterval = null;
 function openTimer() { document.getElementById('timerOverlay').classList.remove('hidden'); }
 function closeTimer() { document.getElementById('timerOverlay').classList.add('hidden'); }
@@ -1193,7 +1134,6 @@ function updateTimerDisplay() {
   document.getElementById('timerDisplay').textContent = `${m}:${s}`;
 }
 
-/* ========================= HELPERS ========================= */
 function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
