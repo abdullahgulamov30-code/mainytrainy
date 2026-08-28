@@ -73,7 +73,6 @@ button, input, textarea, select{ font-family:inherit; }
 .btn-outline.small{ padding:10px 16px; }
 .btn-outline:hover{ background:var(--gold); color:#221B12; }
 
-/* SAVE SPINNER */
 .spinner-container {
   display: none;
   align-items: center;
@@ -540,7 +539,6 @@ let online = navigator.onLine;
 let chartInstance = null;
 let saveTimeout = null;
 
-// SAVE INDICATOR FUNCTIONS
 function showSaving(showCheck = false) {
   const el = document.getElementById('saveIndicator');
   el.classList.remove('saved');
@@ -797,14 +795,24 @@ function renderWorkoutDetail(id) {
     render();
   });
 
+  // 🔥 GEFIXTER ADD EXERCISE BUTTON
   document.getElementById('addExBtn').addEventListener('click', async () => {
     const name = document.getElementById('newExName').value.trim();
     const type = document.getElementById('newExType').value;
     const group = document.getElementById('newExGroup').value.trim();
     if (!name) return;
+
+    // 1. ALLE aktuellen Werte VOR dem Hinzufügen speichern
+    await saveAllInputs(w);
+
+    // 2. Neue Übung aus dem FRISCHEN State hinzufügen
+    const freshWorkout = workouts.find(x => x.id === w.id);
+    if (!freshWorkout) return;
     const newEx = ex(name, type, [{}]);
     newEx.group = group;
-    const exercises = [...(w.exercises || []), { ...newEx, setMeta: [{}] }];
+    const exercises = [...(freshWorkout.exercises || []), { ...newEx, setMeta: [{}] }];
+    
+    // 3. Speichern und neu rendern
     await patchWorkout(w.id, { exercises });
     render();
   });
@@ -955,7 +963,6 @@ async function patchWorkout(id, patch) {
     const idx = workouts.findIndex(x => x.id === id);
     if (idx > -1) workouts[idx] = data;
   } finally {
-    // Sicherheitshalber nach 2 Sekunden ausblenden, falls es hängt
     setTimeout(() => hideSaving(true), 2000);
   }
 }
@@ -963,13 +970,11 @@ async function patchWorkout(id, patch) {
 function cloneExercises(w) { return JSON.parse(JSON.stringify(w.exercises || [])); }
 
 async function updateSetField(w, exI, sI, field, value) {
-  // 1. Lokalen State SOFORT synchron aktualisieren (für "ADD SET" etc.)
   const idx = workouts.findIndex(x => x.id === w.id);
   if (idx > -1) {
     if (!workouts[idx].exercises[exI] || !workouts[idx].exercises[exI].sets[sI]) return;
     workouts[idx].exercises[exI].sets[sI][field] = value;
   }
-  // 2. Supabase im Hintergrund aktualisieren (mit Spinner)
   triggerSaveIndicator();
   try {
     const exercises = cloneExercises(w);
@@ -996,7 +1001,6 @@ async function removeSet(w, exI, sI) {
 }
 
 async function addSet(w, exI) {
-  // Lokalen State SOFORT synchron aktualisieren
   const idx = workouts.findIndex(x => x.id === w.id);
   if (idx === -1) return;
   const exercises = workouts[idx].exercises;
@@ -1005,7 +1009,6 @@ async function addSet(w, exI) {
   if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
   exercises[exI].setMeta.push({});
   
-  // Supabase im Hintergrund synchronisieren
   triggerSaveIndicator();
   try {
     await patchWorkout(w.id, { exercises });
