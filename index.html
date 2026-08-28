@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+/* (Der gleiche CSS-Code wie zuvor – bleibt unverändert) */
 :root{
   --bg: #221B12;
   --bg-elevated: #2E2517;
@@ -810,30 +811,20 @@ function renderWorkoutDetail(id) {
     render();
   });
 
-  // 🔥 GEFIXTER ADD EXERCISE BUTTON – HOLT SICH IMMER DEN FRISCHEN STATE
   document.getElementById('addExBtn').addEventListener('click', async () => {
     const name = document.getElementById('newExName').value.trim();
     const type = document.getElementById('newExType').value;
     const group = document.getElementById('newExGroup').value.trim();
     if (!name) return;
 
-    // 1. HOL DIR DAS AKTUELLSTE WORKOUT AUS DEM STATE
     const freshWorkout = workouts.find(x => x.id === w.id);
     if (!freshWorkout) return;
-
-    // 2. ALLE AKTUELLEN WERTE AUS DEM DOM IN DIESES WORKOUT SPEICHERN
     await saveAllInputs(freshWorkout);
-
-    // 3. NOCHMAL DAS FRISCHE WORKOUT HOLEN (WEIL saveAllInputs DEN STATE UPDATED)
     const updatedWorkout = workouts.find(x => x.id === w.id);
     if (!updatedWorkout) return;
-
-    // 4. NEUE ÜBUNG HINZUFÜGEN
     const newEx = ex(name, type, [{}]);
     newEx.group = group;
     const exercises = [...(updatedWorkout.exercises || []), { ...newEx, setMeta: [{}] }];
-    
-    // 5. SPEICHERN UND RENDERN
     await patchWorkout(w.id, { exercises });
     render();
   });
@@ -842,9 +833,7 @@ function renderWorkoutDetail(id) {
   (w.exercises || []).forEach((exItem, exIdx) => list.appendChild(renderExerciseCard(w, exItem, exIdx)));
 }
 
-// 🔥 VERBESSERTE saveAllInputs – HOLT SICH IMMER DAS AKTUELLSTE WORKOUT
 async function saveAllInputs(workoutParam) {
-  // Falls ein Workout übergeben wurde, nimm das – sonst hol's aus dem State
   let w = workoutParam;
   if (!w) {
     if (!currentWorkoutId) return;
@@ -854,7 +843,6 @@ async function saveAllInputs(workoutParam) {
 
   showSaving();
   try {
-    // Lese alle Werte aus dem DOM
     const inputs = document.querySelectorAll('input.set-input');
     const exercises = JSON.parse(JSON.stringify(w.exercises || []));
     
@@ -889,11 +877,9 @@ async function saveAllInputs(workoutParam) {
       if (exercises[exI]) exercises[exI].notes = ta.value;
     });
     
-    // State updaten
     const idx = workouts.findIndex(x => x.id === w.id);
     if (idx > -1) workouts[idx].exercises = exercises;
     
-    // In DB speichern
     await patchWorkout(w.id, { exercises });
     hideSaving(true);
   } catch (e) {
@@ -986,7 +972,24 @@ function renderExerciseCard(w, exItem, exIdx) {
     });
   });
 
-  card.querySelector('[data-addset]').addEventListener('click', () => addSet(w, exIdx));
+  // 🔥 HIER IST DER GEFIXTE ADD SET BUTTON
+  card.querySelector('[data-addset]').addEventListener('click', async () => {
+    // 1. Alle aktuellen Werte aus DOM in den State speichern
+    await saveAllInputs(w);
+    // 2. Das frisch aktualisierte Workout holen
+    const freshWorkout = workouts.find(x => x.id === w.id);
+    if (!freshWorkout) return;
+    const exercises = freshWorkout.exercises;
+    if (!exercises[exIdx]) return;
+    // 3. Neues Set hinzufügen
+    exercises[exIdx].sets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
+    if (!exercises[exIdx].setMeta) exercises[exIdx].setMeta = [];
+    exercises[exIdx].setMeta.push({});
+    // 4. Speichern und rendern
+    await patchWorkout(w.id, { exercises });
+    render();
+  });
+
   card.querySelector('[data-removeex]').addEventListener('click', () => removeExercise(w, exIdx));
   card.querySelector('[data-notes]').addEventListener('change', (e) => updateExerciseNotes(w, exIdx, e.target.value));
 
@@ -1038,21 +1041,9 @@ async function removeSet(w, exI, sI) {
   render();
 }
 
-async function addSet(w, exI) {
-  const idx = workouts.findIndex(x => x.id === w.id);
-  if (idx === -1) return;
-  const exercises = workouts[idx].exercises;
-  if (!exercises[exI]) return;
-  exercises[exI].sets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
-  if (!exercises[exI].setMeta) exercises[exI].setMeta = [];
-  exercises[exI].setMeta.push({});
-  
-  triggerSaveIndicator();
-  try {
-    await patchWorkout(w.id, { exercises });
-  } catch (e) { console.error(e); }
-  render();
-}
+// Die alte addSet-Funktion wird nicht mehr verwendet – wir haben sie in den Event-Listener eingebaut.
+// Sie bleibt aber zur Sicherheit hier (wird nicht aufgerufen).
+async function addSet(w, exI) { /* nicht mehr verwendet */ }
 
 async function removeExercise(w, exI) {
   const idx = workouts.findIndex(x => x.id === w.id);
