@@ -92,12 +92,8 @@ button, input, textarea, select{ font-family:inherit; }
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-.spinner-container.saved {
-  border: none;
-}
-.spinner-container.saved .spinner {
-  display: none;
-}
+.spinner-container.saved { border: none; }
+.spinner-container.saved .spinner { display: none; }
 .spinner-container.saved::after {
   content: "✓";
   color: #5FD08A;
@@ -395,9 +391,7 @@ main#view{ padding:20px; padding-bottom:100px; }
   background:var(--bg-elevated); padding:10px 14px; border-radius:6px;
   border-left: 4px solid var(--gold);
 }
-.best-item{
-  font-size:13px; font-weight:700; color:var(--text-secondary);
-}
+.best-item{ font-size:13px; font-weight:700; color:var(--text-secondary); }
 .best-item strong{ color:var(--gold-strong); font-family:var(--font-display); font-weight:900; }
 .chart-container{
   background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
@@ -432,7 +426,7 @@ main#view{ padding:20px; padding-bottom:100px; }
 }
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 18px; }
 
-/* ── Inline rename (generic – used for exercises, workouts, templates) ── */
+/* Inline rename */
 .ex-name-display{
   cursor:pointer;
   display:inline-flex;
@@ -448,18 +442,9 @@ main#view{ padding:20px; padding-bottom:100px; }
   background:rgba(231,187,78,0.14);
   color:var(--gold-strong);
 }
-.ex-name-pencil{
-  font-size:12px;
-  opacity:0.5;
-  font-weight:900;
-}
+.ex-name-pencil{ font-size:12px; opacity:0.5; font-weight:900; }
 .ex-name-display:hover .ex-name-pencil{ opacity:1; }
-.ex-name-editing{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  margin-bottom:4px;
-}
+.ex-name-editing{ display:flex; align-items:center; gap:6px; margin-bottom:4px; }
 .ex-name-editing input{
   flex:1;
   background:var(--bg-elevated);
@@ -491,7 +476,7 @@ main#view{ padding:20px; padding-bottom:100px; }
   border:1px solid var(--border);
 }
 
-/* ── Template editor rows ── */
+/* Template editor */
 .tpl-ex-card{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -522,6 +507,57 @@ main#view{ padding:20px; padding-bottom:100px; }
   font-weight:800;
   letter-spacing:.06em;
 }
+
+/* Block header (in workout detail) */
+.block-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:28px 0 14px;
+  color:var(--gold-strong);
+  font-family:var(--font-display);
+  font-weight:800;
+  font-size:14px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.block-header::after{
+  content:'';
+  flex:1;
+  height:1px;
+  background:var(--border);
+}
+.block-header:first-child{ margin-top:0; }
+
+/* Add-block section */
+.block-add-box{
+  background:transparent;
+  border:1px dashed var(--border);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-bottom:18px;
+}
+.block-btn{
+  display:block;
+  width:100%;
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  color:var(--gold-strong);
+  border-radius:8px;
+  padding:14px;
+  font-weight:800;
+  letter-spacing:.08em;
+  font-size:13px;
+  cursor:pointer;
+  margin-bottom:8px;
+  text-align:left;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.block-btn:last-child{ margin-bottom:0; }
+.block-btn:active{ background:var(--gold); color:#221B12; }
+
 @media (min-width: 720px){
   main#view{ max-width:640px; margin:0 auto; }
   .topbar, .status-bar, .tabs{ max-width:640px; margin:0 auto; }
@@ -568,10 +604,11 @@ const SUPABASE_URL = "https://sysfeilongpxoyjxkzpq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5c2ZlaWxvbmdweG95anhrenBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MDc4MDAsImV4cCI6MjEwMzE4MzgwMH0.i7B1UdiRLeLEQnkznaKomfccXbfxHbu_n5mOnX1IeWg";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ─── DEFAULT TEMPLATES (werden beim ersten Start in die DB geschrieben) ───
+// ─── DEFAULT TEMPLATES ───
 const DEFAULT_TEMPLATES = {
   Pull: {
     color: 'blue',
+    isBlock: false,
     exercises: [
       ex('Pull Ups', 'reps', [{}, {}, {}]),
       ex('Muscle Ups', 'reps', [{}, {}, {}]),
@@ -582,6 +619,7 @@ const DEFAULT_TEMPLATES = {
   },
   Push: {
     color: 'red',
+    isBlock: false,
     exercises: [
       ex('Dips', 'reps', [{}, {}, {}]),
       ex('Push Ups / Dumbbell Bench Press', 'reps', [{}, {}, {}]),
@@ -593,6 +631,7 @@ const DEFAULT_TEMPLATES = {
   },
   'Leg & Abs': {
     color: 'yellow',
+    isBlock: false,
     exercises: [
       ex('Frog Jumps', 'reps', [{}, {}, {}], '3 sets'),
       ex('Weighted Squats', 'reps', [{}, {}, {}], '3 sets'),
@@ -603,8 +642,10 @@ const DEFAULT_TEMPLATES = {
       ex('Over the Finger Holds', 'duration', [{ target: '30s' }, { target: '15s' }], '30s & 15s'),
     ],
   },
-  Volleyball: { color: 'orange', exercises: [] },
-  Custom: { color: 'gray', exercises: [] },
+  Volleyball: { color: 'orange', isBlock: false, exercises: [] },
+  Custom: { color: 'gray', isBlock: false, exercises: [] },
+  'Armwrestling 1': { color: 'gray', isBlock: true, exercises: [] },
+  'Armwrestling 2': { color: 'gray', isBlock: true, exercises: [] },
 };
 
 let templates = {};
@@ -657,9 +698,7 @@ function hideSaving(showCheck = false) {
 function triggerSaveIndicator() {
   showSaving();
   if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    hideSaving(true);
-  }, 500);
+  saveTimeout = setTimeout(() => { hideSaving(true); }, 500);
 }
 
 init();
@@ -704,9 +743,19 @@ async function loadTemplates() {
         color: DEFAULT_TEMPLATES[k].color,
         exercises: DEFAULT_TEMPLATES[k].exercises,
         sort_order: i,
+        is_block: DEFAULT_TEMPLATES[k].isBlock === true,
       }));
-      const { error: insErr } = await supabase.from('templates').insert(rows);
-      if (insErr) console.warn('Templates konnten nicht geseedet werden:', insErr.message);
+      // Try with is_block; fallback without if column missing
+      let { error: insErr } = await supabase.from('templates').insert(rows);
+      if (insErr && /column .*is_block/i.test(insErr.message)) {
+        const rowsNoBlock = rows.map(r => {
+          const { is_block, ...rest } = r;
+          return rest;
+        });
+        await supabase.from('templates').insert(rowsNoBlock);
+      } else if (insErr) {
+        console.warn('Templates konnten nicht geseedet werden:', insErr.message);
+      }
       templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
       return;
     }
@@ -717,17 +766,25 @@ async function loadTemplates() {
         templates[row.name] = {
           color: row.color || 'gray',
           exercises: Array.isArray(row.exercises) ? row.exercises : [],
+          isBlock: row.is_block === true,
         };
       });
-    Object.keys(DEFAULT_TEMPLATES).forEach((k, i) => {
+    // Missing default templates (z.B. AW1, AW2) nachziehen
+    Object.keys(DEFAULT_TEMPLATES).forEach(async (k, i) => {
       if (!templates[k]) {
         templates[k] = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES[k]));
-        supabase.from('templates').insert({
+        const row = {
           name: k,
           color: DEFAULT_TEMPLATES[k].color,
           exercises: DEFAULT_TEMPLATES[k].exercises,
           sort_order: i,
-        }).then(() => {}).catch(() => {});
+          is_block: DEFAULT_TEMPLATES[k].isBlock === true,
+        };
+        let { error: insErr } = await supabase.from('templates').insert(row);
+        if (insErr && /column .*is_block/i.test(insErr.message)) {
+          const { is_block, ...rest } = row;
+          await supabase.from('templates').insert(rest);
+        }
       }
     });
   } catch (e) {
@@ -739,22 +796,33 @@ async function loadTemplates() {
 async function saveTemplate(name) {
   const tpl = templates[name];
   if (!tpl) return;
-  const { error } = await supabase.from('templates').upsert({
+  const base = {
     name,
     color: tpl.color,
     exercises: tpl.exercises,
     sort_order: Object.keys(templates).indexOf(name),
-  }, { onConflict: 'name' });
+  };
+  let { error } = await supabase.from('templates').upsert(
+    { ...base, is_block: tpl.isBlock === true },
+    { onConflict: 'name' }
+  );
+  if (error && /column .*is_block/i.test(error.message)) {
+    ({ error } = await supabase.from('templates').upsert(base, { onConflict: 'name' }));
+  }
   if (error) {
     console.error('Template-Save-Fehler:', error);
     alert('Fehler beim Speichern des Templates.');
   }
 }
 
-// ─── TEMPLATE UMBENENNEN ───
-// Da name der Primary Key ist: neue Zeile einfügen, alte löschen.
-// Die In-Memory-Objektreferenz bleibt erhalten, damit offene Editor-Sessions
-// weiterhin auf das gleiche Objekt zeigen.
+async function deleteTemplate(name) {
+  const tpl = templates[name];
+  if (!tpl) return;
+  const { error } = await supabase.from('templates').delete().eq('name', name);
+  if (error) { console.error(error); alert('Fehler beim Löschen.'); return; }
+  delete templates[name];
+}
+
 async function renameTemplate(oldName, newName) {
   if (!newName || newName === oldName) return false;
   if (templates[newName]) {
@@ -766,29 +834,33 @@ async function renameTemplate(oldName, newName) {
 
   const sortOrder = Object.keys(templates).indexOf(oldName);
 
-  const { error: insErr } = await supabase.from('templates').insert({
+  const insertRow = {
     name: newName,
     color: tpl.color,
     exercises: tpl.exercises,
     sort_order: sortOrder,
-  });
+    is_block: tpl.isBlock === true,
+  };
+  let { error: insErr } = await supabase.from('templates').insert(insertRow);
+  if (insErr && /column .*is_block/i.test(insErr.message)) {
+    const { is_block, ...rest } = insertRow;
+    ({ error: insErr } = await supabase.from('templates').insert(rest));
+  }
   if (insErr) {
     console.error('Rename insert failed:', insErr);
-    alert('Fehler beim Umbenennen des Templates.');
+    alert('Fehler beim Umbenennen.');
     return false;
   }
 
   const { error: delErr } = await supabase.from('templates').delete().eq('name', oldName);
   if (delErr) console.error('Rename delete failed:', delErr);
 
-  // In-Memory-Update unter Beibehaltung der Objektreferenz
   const newTemplates = {};
   Object.keys(templates).forEach(k => {
     if (k === oldName) newTemplates[newName] = tpl;
     else newTemplates[k] = templates[k];
   });
   templates = newTemplates;
-
   return true;
 }
 
@@ -899,7 +971,7 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-// ─── TEMPLATE PICKER ───
+// ─── TEMPLATE PICKER (new workout) ───
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -916,7 +988,8 @@ function openTemplatePicker() {
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
 
   const grid = sheet.querySelector('#tplGrid');
-  Object.keys(templates).forEach(name => {
+  // Block-Templates NICHT als Haupt-Workout anzeigen
+  Object.keys(templates).filter(k => !templates[k].isBlock).forEach(name => {
     const tpl = templates[name];
     const card = document.createElement('div');
     card.className = 'template-card';
@@ -959,37 +1032,53 @@ async function createWorkout(typeName, date) {
   render();
 }
 
-// ─── TEMPLATE EDITOR ───
+// ─── TEMPLATE EDITOR (list) ───
 function openTemplateEditor() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
-  sheet.innerHTML = `
-    <div class="modal-inner">
-      <h3 class="modal-title">Edit Templates</h3>
-      <p style="color:var(--text-muted);font-size:13px;font-weight:700;margin:-8px 0 16px;">
-        Wähle ein Template, um Übungen hinzuzufügen, umzubenennen oder zu entfernen.
-      </p>
-      <div class="template-grid" id="tplList"></div>
-      <button class="btn-outline" id="closeTplEditor" style="width:100%;margin-top:16px;">CLOSE</button>
-    </div>`;
   document.body.appendChild(sheet);
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
 
-  const list = sheet.querySelector('#tplList');
-  Object.keys(templates).forEach(name => {
-    const tpl = templates[name];
-    const card = document.createElement('div');
-    card.className = 'template-card';
-    card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length} exercise${tpl.exercises.length !== 1 ? 's' : ''}</p></div>
-      <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color] || TYPE_COLORS.gray}"></span>`;
-    card.addEventListener('click', () => {
-      sheet.remove();
-      openSingleTemplateEditor(name);
-    });
-    list.appendChild(card);
-  });
+  const renderList = () => {
+    sheet.innerHTML = `
+      <div class="modal-inner">
+        <h3 class="modal-title">Edit Templates</h3>
+        <p style="color:var(--text-muted);font-size:13px;font-weight:700;margin:-8px 0 16px;">
+          Templates mit dem Block-Häkchen erscheinen nur in der „Add Block"-Sektion innerhalb eines Workouts (z.B. Armwrestling).
+        </p>
+        <button class="btn-gold" id="addNewTplBtn" style="margin-bottom:16px;">+ NEW TEMPLATE</button>
+        <div class="template-grid" id="tplList"></div>
+        <button class="btn-outline" id="closeTplEditor" style="width:100%;margin-top:16px;">CLOSE</button>
+      </div>`;
 
-  sheet.querySelector('#closeTplEditor').addEventListener('click', () => sheet.remove());
+    const list = sheet.querySelector('#tplList');
+    Object.keys(templates).forEach(name => {
+      const tpl = templates[name];
+      const badge = tpl.isBlock ? ' · <span style="color:var(--gold-strong);">BLOCK</span>' : '';
+      const card = document.createElement('div');
+      card.className = 'template-card';
+      card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length} exercise${tpl.exercises.length !== 1 ? 's' : ''}${badge}</p></div>
+        <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color] || TYPE_COLORS.gray}"></span>`;
+      card.addEventListener('click', () => {
+        sheet.remove();
+        openSingleTemplateEditor(name);
+      });
+      list.appendChild(card);
+    });
+
+    sheet.querySelector('#closeTplEditor').addEventListener('click', () => sheet.remove());
+    sheet.querySelector('#addNewTplBtn').addEventListener('click', async () => {
+      const name = prompt('Name für neues Template:', 'Neues Template');
+      if (!name || !name.trim()) return;
+      const trimmed = name.trim();
+      if (templates[trimmed]) { alert('Ein Template mit diesem Namen existiert bereits.'); return; }
+      templates[trimmed] = { color: 'gray', exercises: [], isBlock: false };
+      await saveTemplate(trimmed);
+      renderList();
+    });
+  };
+
+  renderList();
 }
 
 function openSingleTemplateEditor(templateName) {
@@ -1004,12 +1093,19 @@ function openSingleTemplateEditor(templateName) {
   const renderEditor = () => {
     sheet.innerHTML = `
       <div class="modal-inner">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;">
-          <h3 class="modal-title" id="tplTitleDisplay" style="margin:0;cursor:pointer;" title="Tap to rename">
-            ${escapeHtml(templateName)} <span style="font-size:13px;color:var(--gold);opacity:0.75;">✎</span>
-          </h3>
-          <button class="btn-text" id="tplClose">Close</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;flex-wrap:wrap;">
+          <h3 class="modal-title" style="margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(templateName)}</h3>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn-outline small" id="tplRenameBtn" style="font-size:11px;">✎ NAME</button>
+            <button class="btn-text" id="tplClose">Close</button>
+          </div>
         </div>
+
+        <label style="display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+          <input type="checkbox" id="tplIsBlock" ${tpl.isBlock ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;" />
+          <span style="font-size:13px;font-weight:700;color:var(--text-secondary);">Als Block anzeigen (z.B. Armwrestling)</span>
+        </label>
+
         <div id="tplExList"></div>
         <div class="add-exercise-box" style="margin-top:16px;">
           <div class="field-label">Add Exercise to Template</div>
@@ -1023,6 +1119,8 @@ function openSingleTemplateEditor(templateName) {
           </div>
           <button class="btn-gold" id="tplAddExBtn">ADD EXERCISE</button>
         </div>
+
+        <button class="btn-danger-text" id="tplDeleteBtn" style="width:100%;margin-top:16px;padding:12px;">DELETE TEMPLATE</button>
       </div>`;
 
     const list = sheet.querySelector('#tplExList');
@@ -1050,19 +1148,32 @@ function openSingleTemplateEditor(templateName) {
 
     sheet.querySelector('#tplClose').addEventListener('click', () => sheet.remove());
 
-    // ⭐ Template-Name umbenennen
-    sheet.querySelector('#tplTitleDisplay').addEventListener('click', () => {
-      const titleEl = sheet.querySelector('#tplTitleDisplay');
-      startInlineRename(titleEl, templateName, async (newName) => {
-        if (newName && newName !== templateName) {
-          const ok = await renameTemplate(templateName, newName);
-          if (ok) {
-            templateName = newName;
-            tpl = templates[templateName];
-          }
-        }
-        renderEditor();
-      });
+    // Rename template name
+    sheet.querySelector('#tplRenameBtn').addEventListener('click', async () => {
+      const newName = prompt('Neuer Template-Name:', templateName);
+      if (!newName || !newName.trim()) return;
+      const trimmed = newName.trim();
+      if (trimmed === templateName) return;
+      const ok = await renameTemplate(templateName, trimmed);
+      if (ok) {
+        templateName = trimmed;
+        tpl = templates[templateName];
+      }
+      renderEditor();
+    });
+
+    // Toggle block
+    sheet.querySelector('#tplIsBlock').addEventListener('change', async (e) => {
+      tpl.isBlock = e.target.checked;
+      await saveTemplate(templateName);
+    });
+
+    // Delete template
+    sheet.querySelector('#tplDeleteBtn').addEventListener('click', async () => {
+      if (!confirm(`Template "${templateName}" wirklich löschen?`)) return;
+      await deleteTemplate(templateName);
+      sheet.remove();
+      openTemplateEditor();
     });
 
     list.querySelectorAll('[data-remove-i]').forEach(btn => {
@@ -1106,7 +1217,6 @@ function openSingleTemplateEditor(templateName) {
 }
 
 // ─── INLINE RENAME HELPER ───
-// Ersetzt ein Element durch ein Input mit ✓/✕ Buttons.
 function startInlineRename(anchorEl, currentName, onFinish) {
   const wrapper = document.createElement('div');
   wrapper.className = 'ex-name-editing';
@@ -1171,6 +1281,14 @@ function renderWorkoutDetail(id) {
   const el = document.getElementById('view');
   if (!w) { currentWorkoutId = null; return render(); }
 
+  // Block templates für "Add Block" Sektion
+  const blockTemplates = Object.keys(templates).filter(k => templates[k].isBlock);
+  const blockBoxHtml = blockTemplates.length ? `
+    <div class="block-add-box">
+      <div class="field-label">Add Block</div>
+      <div id="blockBtnWrap"></div>
+    </div>` : '';
+
   el.innerHTML = `
     <div class="detail-header">
       <div class="title-row">
@@ -1194,10 +1312,37 @@ function renderWorkoutDetail(id) {
       </div>
       <button class="btn-gold" id="addExBtn">ADD EXERCISE</button>
     </div>
+    ${blockBoxHtml}
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
 
-  // ⭐ Workout-Name umbenennen
+  // Block-Buttons füllen
+  if (blockTemplates.length) {
+    const wrap = document.getElementById('blockBtnWrap');
+    blockTemplates.forEach(name => {
+      const tpl = templates[name];
+      const btn = document.createElement('button');
+      btn.className = 'block-btn';
+      btn.innerHTML = `<span style="font-size:16px;">＋</span> <span style="flex:1;">${escapeHtml(name)}</span> <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${tpl.exercises.length} ex</span>`;
+      btn.addEventListener('click', async () => {
+        if (!tpl.exercises.length) {
+          alert(`"${name}" hat noch keine Übungen. Bearbeite das Template zuerst unter ✎ TEMPLATES.`);
+          return;
+        }
+        await saveAllInputs(w);
+        const freshW = workouts.find(x => x.id === w.id);
+        if (!freshW) return;
+        const newExercises = JSON.parse(JSON.stringify(tpl.exercises));
+        newExercises.forEach(e => { e.block = name; });
+        const exercises = [...(freshW.exercises || []), ...newExercises];
+        await patchWorkout(w.id, { exercises });
+        render();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  // Workout name rename
   document.getElementById('workoutTitleDisplay').addEventListener('click', async () => {
     await saveAllInputs(w);
     const freshW = workouts.find(x => x.id === w.id);
@@ -1251,7 +1396,19 @@ function renderWorkoutDetail(id) {
   });
 
   const list = document.getElementById('exList');
-  (w.exercises || []).forEach((exItem, exIdx) => list.appendChild(renderExerciseCard(w, exItem, exIdx)));
+  let lastBlock = null;
+  (w.exercises || []).forEach((exItem, exIdx) => {
+    // Block-Header anzeigen wenn neuer Block beginnt
+    const curBlock = exItem.block || null;
+    if (curBlock && curBlock !== lastBlock) {
+      const header = document.createElement('div');
+      header.className = 'block-header';
+      header.innerHTML = `<span>${escapeHtml(curBlock)}</span>`;
+      list.appendChild(header);
+    }
+    lastBlock = curBlock;
+    list.appendChild(renderExerciseCard(w, exItem, exIdx));
+  });
 }
 
 async function saveAllInputs(workoutParam) {
@@ -1386,9 +1543,7 @@ function renderExerciseCard(w, exItem, exIdx) {
         if (inp.classList.contains('set-rpe')) field = 'rpe';
         else if (inp.classList.contains('set-note-input')) field = 'setNotes';
       }
-      if (field) {
-        updateSetField(w, exI, setIdx, field, inp.value);
-      }
+      if (field) updateSetField(w, exI, setIdx, field, inp.value);
     });
   });
 
@@ -1691,9 +1846,7 @@ function renderStatsFor(name) {
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        plugins: {
-          legend: { labels: { color: '#CDBE9C', font: { weight: 'bold' } } }
-        },
+        plugins: { legend: { labels: { color: '#CDBE9C', font: { weight: 'bold' } } } },
         scales: {
           y: { grid: { color: '#3A2F1C' }, ticks: { color: '#9A8B6C' } },
           x: { grid: { display: false }, ticks: { color: '#9A8B6C', maxRotation: 45 } }
