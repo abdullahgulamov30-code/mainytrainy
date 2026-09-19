@@ -9,7 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* (Der gleiche CSS-Code wie zuvor – bleibt unverändert) */
 :root{
   --bg: #221B12;
   --bg-elevated: #2E2517;
@@ -432,6 +431,97 @@ main#view{ padding:20px; padding-bottom:100px; }
   border-top:1px solid var(--border);
 }
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 18px; }
+
+/* ── NEW: inline exercise name editing ── */
+.ex-name-display{
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border-radius:6px;
+  padding:2px 6px 2px 4px;
+  margin-left:-4px;
+  transition:background .15s, color .15s;
+}
+.ex-name-display:hover,
+.ex-name-display:active{
+  background:rgba(231,187,78,0.14);
+  color:var(--gold-strong);
+}
+.ex-name-pencil{
+  font-size:12px;
+  opacity:0.5;
+  font-weight:900;
+}
+.ex-name-display:hover .ex-name-pencil{ opacity:1; }
+.ex-name-editing{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:4px;
+}
+.ex-name-editing input{
+  flex:1;
+  background:var(--bg-elevated);
+  border:1.5px solid var(--gold);
+  color:var(--text-primary);
+  border-radius:6px;
+  padding:8px 10px;
+  font-weight:800;
+  font-size:17px;
+  font-family:var(--font-display);
+  outline:none;
+  min-width:0;
+}
+.ex-name-save-btn,
+.ex-name-cancel-btn{
+  background:var(--gold);
+  border:none;
+  color:#221B12;
+  font-weight:900;
+  border-radius:6px;
+  padding:8px 12px;
+  cursor:pointer;
+  font-size:15px;
+  flex-shrink:0;
+}
+.ex-name-cancel-btn{
+  background:transparent;
+  color:var(--text-muted);
+  border:1px solid var(--border);
+}
+
+/* ── NEW: template editor row ── */
+.tpl-ex-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px 14px;
+  margin-bottom:10px;
+}
+.tpl-ex-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.tpl-ex-name{
+  font-family:var(--font-display);
+  font-size:17px;
+  font-weight:800;
+  margin:0 0 4px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.tpl-ex-name:hover{ color:var(--gold-strong); }
+.tpl-ex-meta{
+  font-size:11px;
+  color:var(--text-secondary);
+  font-weight:800;
+  letter-spacing:.06em;
+}
 @media (min-width: 720px){
   main#view{ max-width:640px; margin:0 auto; }
   .topbar, .status-bar, .tabs{ max-width:640px; margin:0 auto; }
@@ -478,7 +568,8 @@ const SUPABASE_URL = "https://sysfeilongpxoyjxkzpq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5c2ZlaWxvbmdweG95anhrenBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MDc4MDAsImV4cCI6MjEwMzE4MzgwMH0.i7B1UdiRLeLEQnkznaKomfccXbfxHbu_n5mOnX1IeWg";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const TEMPLATES = {
+// ─── DEFAULT TEMPLATES (werden beim ersten Start in die DB geschrieben) ───
+const DEFAULT_TEMPLATES = {
   Pull: {
     color: 'blue',
     exercises: [
@@ -516,6 +607,9 @@ const TEMPLATES = {
   Custom: { color: 'gray', exercises: [] },
 };
 
+// In-Memory Templates (aus DB geladen oder Fallback auf Defaults)
+let templates = {};
+
 function ex(name, inputType, setDefs, note) {
   return {
     name,
@@ -540,7 +634,7 @@ let online = navigator.onLine;
 let chartInstance = null;
 let saveTimeout = null;
 
-function showSaving(showCheck = false) {
+function showSaving() {
   const el = document.getElementById('saveIndicator');
   el.classList.remove('saved');
   el.style.display = 'flex';
@@ -575,14 +669,14 @@ async function init() {
   updateStatus();
   window.addEventListener('online', () => { online = true; updateStatus(); loadWorkouts(); });
   window.addEventListener('offline', () => { online = false; updateStatus(); });
-  
+
   document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', async () => {
       await saveCurrentWorkoutIfNeeded();
       switchTab(btn.dataset.tab);
     });
   });
-  
+
   window.addEventListener('beforeunload', async () => {
     await saveCurrentWorkoutIfNeeded();
   });
@@ -592,8 +686,73 @@ async function init() {
   document.getElementById('timerStartPause').addEventListener('click', toggleTimer);
   document.getElementById('timerReset').addEventListener('click', resetTimer);
 
+  // Templates ZUERST laden, dann Workouts
+  await loadTemplates();
   await loadWorkouts();
   render();
+}
+
+async function loadTemplates() {
+  try {
+    const { data, error } = await supabase.from('templates').select('*');
+    if (error) {
+      console.warn('Templates-Tabelle nicht erreichbar, nutze Defaults:', error.message);
+      templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+      return;
+    }
+    if (!data || data.length === 0) {
+      // Erstes Mal: Default-Templates in die DB schreiben
+      const rows = Object.keys(DEFAULT_TEMPLATES).map((k, i) => ({
+        name: k,
+        color: DEFAULT_TEMPLATES[k].color,
+        exercises: DEFAULT_TEMPLATES[k].exercises,
+        sort_order: i,
+      }));
+      const { error: insErr } = await supabase.from('templates').insert(rows);
+      if (insErr) console.warn('Templates konnten nicht geseedet werden:', insErr.message);
+      templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+      return;
+    }
+    templates = {};
+    data
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .forEach(row => {
+        templates[row.name] = {
+          color: row.color || 'gray',
+          exercises: Array.isArray(row.exercises) ? row.exercises : [],
+        };
+      });
+    // Falls neue Default-Templates dazugekommen sind (z.B. Custom), nachziehen
+    Object.keys(DEFAULT_TEMPLATES).forEach((k, i) => {
+      if (!templates[k]) {
+        templates[k] = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES[k]));
+        supabase.from('templates').insert({
+          name: k,
+          color: DEFAULT_TEMPLATES[k].color,
+          exercises: DEFAULT_TEMPLATES[k].exercises,
+          sort_order: i,
+        }).then(() => {}).catch(() => {});
+      }
+    });
+  } catch (e) {
+    console.warn('Template-Load-Fehler, nutze Defaults:', e);
+    templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+  }
+}
+
+async function saveTemplate(name) {
+  const tpl = templates[name];
+  if (!tpl) return;
+  const { error } = await supabase.from('templates').upsert({
+    name,
+    color: tpl.color,
+    exercises: tpl.exercises,
+    sort_order: Object.keys(templates).indexOf(name),
+  }, { onConflict: 'name' });
+  if (error) {
+    console.error('Template-Save-Fehler:', error);
+    alert('Fehler beim Speichern des Templates.');
+  }
 }
 
 async function saveCurrentWorkoutIfNeeded() {
@@ -640,13 +799,17 @@ function renderWorkoutsList() {
   el.innerHTML = `
     <div class="section-label">
       <span>Your Workouts</span>
-      <button id="exportBtn" class="btn-outline small" style="font-size:11px;">⬇ EXPORT</button>
+      <div style="display:flex;gap:8px;">
+        <button id="editTplBtn" class="btn-outline small" style="font-size:11px;">✎ TEMPLATES</button>
+        <button id="exportBtn" class="btn-outline small" style="font-size:11px;">⬇ EXPORT</button>
+      </div>
     </div>
     <div id="wlist"></div>
     <button id="newWorkoutBtn" class="btn-gold" style="margin-top:8px;">+ NEW WORKOUT</button>
   `;
 
   document.getElementById('exportBtn').addEventListener('click', exportData);
+  document.getElementById('editTplBtn').addEventListener('click', openTemplateEditor);
 
   const list = el.querySelector('#wlist');
   if (!workouts.length) {
@@ -655,7 +818,7 @@ function renderWorkoutsList() {
   workouts.forEach(w => {
     const card = document.createElement('div');
     card.className = 'workout-card';
-    const color = TYPE_COLORS[TEMPLATES[w.type]?.color] || TYPE_COLORS.gray;
+    const color = TYPE_COLORS[templates[w.type]?.color] || TYPE_COLORS.gray;
     card.innerHTML = `
       <div class="workout-row" data-open="${w.id}">
         <div>
@@ -687,7 +850,7 @@ function renderWorkoutsList() {
 
 function exportData() {
   if (!workouts.length) { alert('Keine Daten zum Exportieren.'); return; }
-  const dataStr = JSON.stringify(workouts, null, 2);
+  const dataStr = JSON.stringify({ workouts, templates }, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -699,6 +862,7 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
+// ─── TEMPLATE PICKER (bei + NEW WORKOUT) ───
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -715,39 +879,35 @@ function openTemplatePicker() {
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
 
   const grid = sheet.querySelector('#tplGrid');
-  Object.keys(TEMPLATES).forEach(name => {
-    const tpl = TEMPLATES[name];
+  Object.keys(templates).forEach(name => {
+    const tpl = templates[name];
     const card = document.createElement('div');
     card.className = 'template-card';
     card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length ? tpl.exercises.length + ' exercises' : 'Blank'}</p></div>
-      <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color]}"></span>`;
-    
+      <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color] || TYPE_COLORS.gray}"></span>`;
+
     card.addEventListener('click', async () => {
       const dateInput = document.getElementById('newWorkoutDate');
       const date = dateInput ? dateInput.value : new Date().toISOString().slice(0,10);
       let workoutName = name;
-      
+
       if (name === 'Custom') {
         workoutName = prompt('Gib den Namen für dein Workout ein:', 'Mein Workout');
-        if (!workoutName || workoutName.trim() === '') {
-          return;
-        }
+        if (!workoutName || workoutName.trim() === '') return;
         workoutName = workoutName.trim();
       }
-      
+
       sheet.remove();
       await createWorkout(workoutName, date);
     });
-    
+
     grid.appendChild(card);
   });
 }
 
 async function createWorkout(typeName, date) {
-  let tpl = TEMPLATES[typeName];
-  if (!tpl) {
-    tpl = TEMPLATES['Custom'];
-  }
+  let tpl = templates[typeName];
+  if (!tpl) tpl = templates['Custom'] || { color: 'gray', exercises: [] };
   const exercises = JSON.parse(JSON.stringify(tpl.exercises));
   const payload = {
     type: typeName,
@@ -762,6 +922,197 @@ async function createWorkout(typeName, date) {
   render();
 }
 
+// ─── TEMPLATE EDITOR ───
+function openTemplateEditor() {
+  const sheet = document.createElement('div');
+  sheet.className = 'modal-sheet';
+  sheet.innerHTML = `
+    <div class="modal-inner">
+      <h3 class="modal-title">Edit Templates</h3>
+      <p style="color:var(--text-muted);font-size:13px;font-weight:700;margin:-8px 0 16px;">
+        Wähle ein Template, um Übungen hinzuzufügen, umzubenennen oder zu entfernen.
+      </p>
+      <div class="template-grid" id="tplList"></div>
+      <button class="btn-outline" id="closeTplEditor" style="width:100%;margin-top:16px;">CLOSE</button>
+    </div>`;
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+
+  const list = sheet.querySelector('#tplList');
+  Object.keys(templates).forEach(name => {
+    const tpl = templates[name];
+    const card = document.createElement('div');
+    card.className = 'template-card';
+    card.innerHTML = `<div><h4>${escapeHtml(name)}</h4><p>${tpl.exercises.length} exercise${tpl.exercises.length !== 1 ? 's' : ''}</p></div>
+      <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color] || TYPE_COLORS.gray}"></span>`;
+    card.addEventListener('click', () => {
+      sheet.remove();
+      openSingleTemplateEditor(name);
+    });
+    list.appendChild(card);
+  });
+
+  sheet.querySelector('#closeTplEditor').addEventListener('click', () => sheet.remove());
+}
+
+function openSingleTemplateEditor(templateName) {
+  const tpl = templates[templateName];
+  if (!tpl) return;
+
+  const sheet = document.createElement('div');
+  sheet.className = 'modal-sheet';
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+
+  const renderEditor = () => {
+    sheet.innerHTML = `
+      <div class="modal-inner">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <h3 class="modal-title" style="margin:0;">${escapeHtml(templateName)}</h3>
+          <button class="btn-text" id="tplClose">Close</button>
+        </div>
+        <div id="tplExList"></div>
+        <div class="add-exercise-box" style="margin-top:16px;">
+          <div class="field-label">Add Exercise to Template</div>
+          <input class="text-input" id="tplNewExName" placeholder="Exercise name..." />
+          <div class="row-flex">
+            <select class="select-input" id="tplNewExType" style="flex:1;">
+              <option value="reps">Sets & Reps</option>
+              <option value="duration">Time Based</option>
+            </select>
+            <input class="text-input" id="tplNewExSets" placeholder="# Sets" type="number" min="1" value="3" style="flex:1;" />
+          </div>
+          <button class="btn-gold" id="tplAddExBtn">ADD EXERCISE</button>
+        </div>
+      </div>`;
+
+    const list = sheet.querySelector('#tplExList');
+    if (!tpl.exercises.length) {
+      list.innerHTML = `<div class="empty-state">Noch keine Exercises im Template.</div>`;
+    }
+    tpl.exercises.forEach((exItem, i) => {
+      const row = document.createElement('div');
+      row.className = 'tpl-ex-card';
+      row.innerHTML = `
+        <div class="tpl-ex-header">
+          <div style="flex:1;min-width:0;">
+            <h4 class="tpl-ex-name" data-i="${i}" title="Tap to rename">
+              <span class="tpl-ex-name-text">${escapeHtml(exItem.name)}</span>
+              <span style="font-size:11px;color:var(--gold);opacity:0.7;">✎</span>
+            </h4>
+            <div class="tpl-ex-meta">
+              ${exItem.inputType === 'duration' ? 'TIME' : 'SETS & REPS'} · ${(exItem.sets || []).length} set${(exItem.sets||[]).length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <button class="remove-link" data-remove-i="${i}">REMOVE</button>
+        </div>`;
+      list.appendChild(row);
+    });
+
+    sheet.querySelector('#tplClose').addEventListener('click', () => sheet.remove());
+
+    list.querySelectorAll('[data-remove-i]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const i = parseInt(btn.dataset.removeI);
+        tpl.exercises.splice(i, 1);
+        await saveTemplate(templateName);
+        renderEditor();
+      });
+    });
+
+    list.querySelectorAll('.tpl-ex-name').forEach(h4 => {
+      h4.addEventListener('click', () => {
+        const i = parseInt(h4.dataset.i);
+        const currentName = tpl.exercises[i].name;
+        startInlineRename(h4, currentName, async (newName) => {
+          if (newName && newName !== currentName) {
+            tpl.exercises[i].name = newName;
+            await saveTemplate(templateName);
+          }
+          renderEditor();
+        });
+      });
+    });
+
+    sheet.querySelector('#tplAddExBtn').addEventListener('click', async () => {
+      const nameEl = sheet.querySelector('#tplNewExName');
+      const name = nameEl.value.trim();
+      const type = sheet.querySelector('#tplNewExType').value;
+      const numSets = Math.max(1, parseInt(sheet.querySelector('#tplNewExSets').value) || 3);
+      if (!name) { nameEl.focus(); return; }
+      const setDefs = Array.from({ length: numSets }, () => ({}));
+      const newEx = ex(name, type, setDefs);
+      tpl.exercises.push(newEx);
+      await saveTemplate(templateName);
+      renderEditor();
+    });
+  };
+
+  renderEditor();
+}
+
+// ─── INLINE RENAME HELPER ───
+// Ersetzt ein Element durch ein Input mit ✓/✕ Buttons.
+function startInlineRename(anchorEl, currentName, onFinish) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ex-name-editing';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.autocomplete = 'off';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'ex-name-save-btn';
+  saveBtn.textContent = '✓';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'ex-name-cancel-btn';
+  cancelBtn.textContent = '✕';
+
+  wrapper.appendChild(input);
+  wrapper.appendChild(saveBtn);
+  wrapper.appendChild(cancelBtn);
+  anchorEl.replaceWith(wrapper);
+  input.focus();
+  input.select();
+
+  let finished = false;
+  const finish = (save) => {
+    if (finished) return;
+    finished = true;
+    const val = input.value.trim();
+    onFinish(save ? val : null);
+  };
+
+  saveBtn.addEventListener('click', () => finish(true));
+  cancelBtn.addEventListener('click', () => finish(false));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  // Blur = cancel (damit Tippen außerhalb nicht versehentlich speichert)
+  input.addEventListener('blur', () => {
+    setTimeout(() => { if (!finished) finish(false); }, 120);
+  });
+}
+
+async function renameExercise(workoutId, exIdx, newName) {
+  if (!newName) return;
+  const idx = workouts.findIndex(x => x.id === workoutId);
+  if (idx === -1) return;
+  if (!workouts[idx].exercises[exIdx]) return;
+  workouts[idx].exercises[exIdx].name = newName;
+  const exercises = JSON.parse(JSON.stringify(workouts[idx].exercises));
+  triggerSaveIndicator();
+  try {
+    await patchWorkout(workoutId, { exercises });
+  } catch (e) { console.error(e); }
+}
+
+// ─── WORKOUT DETAIL ───
 function renderWorkoutDetail(id) {
   const w = workouts.find(x => x.id === id);
   const el = document.getElementById('view');
@@ -796,7 +1147,7 @@ function renderWorkoutDetail(id) {
     currentWorkoutId = null;
     render();
   });
-  
+
   document.getElementById('deleteWBtn').addEventListener('click', async () => {
     if (!confirm('Löschen?')) return;
     await supabase.from('workouts').delete().eq('id', w.id);
@@ -845,7 +1196,7 @@ async function saveAllInputs(workoutParam) {
   try {
     const inputs = document.querySelectorAll('input.set-input');
     const exercises = JSON.parse(JSON.stringify(w.exercises || []));
-    
+
     inputs.forEach(inp => {
       const exI = parseInt(inp.dataset.ex);
       const setIdx = parseInt(inp.dataset.set);
@@ -855,7 +1206,7 @@ async function saveAllInputs(workoutParam) {
         exercises[exI].sets[setIdx][field] = value;
       }
     });
-    
+
     document.querySelectorAll('input.set-rpe').forEach(inp => {
       const exI = parseInt(inp.dataset.ex);
       const setIdx = parseInt(inp.dataset.set);
@@ -863,7 +1214,7 @@ async function saveAllInputs(workoutParam) {
         exercises[exI].sets[setIdx].rpe = inp.value;
       }
     });
-    
+
     document.querySelectorAll('input.set-note-input').forEach(inp => {
       const exI = parseInt(inp.dataset.ex);
       const setIdx = parseInt(inp.dataset.set);
@@ -871,15 +1222,15 @@ async function saveAllInputs(workoutParam) {
         exercises[exI].sets[setIdx].setNotes = inp.value;
       }
     });
-    
+
     document.querySelectorAll('textarea.ex-notes').forEach(ta => {
       const exI = parseInt(ta.dataset.notes);
       if (exercises[exI]) exercises[exI].notes = ta.value;
     });
-    
+
     const idx = workouts.findIndex(x => x.id === w.id);
     if (idx > -1) workouts[idx].exercises = exercises;
-    
+
     await patchWorkout(w.id, { exercises });
     hideSaving(true);
   } catch (e) {
@@ -933,8 +1284,14 @@ function renderExerciseCard(w, exItem, exIdx) {
 
   card.innerHTML = `
     <div class="exercise-header">
-      <div>
-        <h4>${escapeHtml(exItem.name)} ${exItem.group ? `<span style="font-size:12px;color:var(--gold);font-weight:700;">[${escapeHtml(exItem.group)}]</span>` : ''}</h4>
+      <div style="flex:1;min-width:0;">
+        <h4>
+          <span class="ex-name-display" data-renameex="${exIdx}" title="Tap to rename">
+            <span class="ex-name-text">${escapeHtml(exItem.name)}</span>
+            <span class="ex-name-pencil">✎</span>
+          </span>
+          ${exItem.group ? `<span style="font-size:12px;color:var(--gold);font-weight:700;">[${escapeHtml(exItem.group)}]</span>` : ''}
+        </h4>
         <span class="exercise-tag">${isDuration ? 'TIME' : 'SETS & REPS'}</span>
         ${exItem.note ? `<div class="set-target" style="margin-top:6px;">${escapeHtml(exItem.note)}</div>` : ''}
       </div>
@@ -972,22 +1329,35 @@ function renderExerciseCard(w, exItem, exIdx) {
     });
   });
 
-  // 🔥 HIER IST DER GEFIXTE ADD SET BUTTON
   card.querySelector('[data-addset]').addEventListener('click', async () => {
-    // 1. Alle aktuellen Werte aus DOM in den State speichern
     await saveAllInputs(w);
-    // 2. Das frisch aktualisierte Workout holen
     const freshWorkout = workouts.find(x => x.id === w.id);
     if (!freshWorkout) return;
     const exercises = freshWorkout.exercises;
     if (!exercises[exIdx]) return;
-    // 3. Neues Set hinzufügen
     exercises[exIdx].sets.push({ reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' });
     if (!exercises[exIdx].setMeta) exercises[exIdx].setMeta = [];
     exercises[exIdx].setMeta.push({});
-    // 4. Speichern und rendern
     await patchWorkout(w.id, { exercises });
     render();
+  });
+
+  // ⭐ NEU: Exercise-Name umbenennen
+  const nameDisplay = card.querySelector('[data-renameex]');
+  nameDisplay.addEventListener('click', async () => {
+    // Erst alle aktuellen Inputs speichern, damit sie nicht verloren gehen
+    await saveAllInputs(w);
+    const freshW = workouts.find(x => x.id === w.id);
+    if (!freshW) return;
+    const freshEx = freshW.exercises[exIdx];
+    if (!freshEx) return;
+    const currentName = freshEx.name;
+    startInlineRename(nameDisplay, currentName, async (newName) => {
+      if (newName && newName !== currentName) {
+        await renameExercise(w.id, exIdx, newName);
+      }
+      render();
+    });
   });
 
   card.querySelector('[data-removeex]').addEventListener('click', () => removeExercise(w, exIdx));
@@ -1040,10 +1410,6 @@ async function removeSet(w, exI, sI) {
   } catch (e) { console.error(e); }
   render();
 }
-
-// Die alte addSet-Funktion wird nicht mehr verwendet – wir haben sie in den Event-Listener eingebaut.
-// Sie bleibt aber zur Sicherheit hier (wird nicht aufgerufen).
-async function addSet(w, exI) { /* nicht mehr verwendet */ }
 
 async function removeExercise(w, exI) {
   const idx = workouts.findIndex(x => x.id === w.id);
@@ -1131,7 +1497,7 @@ function renderCalendar() {
     if (dateStr === todayStr) cell.classList.add('today');
     if (dayWorkouts && dayWorkouts.length) {
       cell.classList.add('trained');
-      const colorKey = TEMPLATES[dayWorkouts[0].type]?.color || 'gray';
+      const colorKey = templates[dayWorkouts[0].type]?.color || 'gray';
       cell.style.background = TYPE_COLORS[colorKey];
     }
     cell.textContent = d;
@@ -1141,7 +1507,7 @@ function renderCalendar() {
 
 function allKnownExerciseNames() {
   const names = new Set();
-  Object.values(TEMPLATES).forEach(t => t.exercises.forEach(e => names.add(e.name)));
+  Object.values(templates).forEach(t => (t.exercises || []).forEach(e => names.add(e.name)));
   workouts.forEach(w => (w.exercises || []).forEach(e => names.add(e.name)));
   return Array.from(names).sort();
 }
