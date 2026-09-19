@@ -432,7 +432,7 @@ main#view{ padding:20px; padding-bottom:100px; }
 }
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 18px; }
 
-/* ── NEW: inline exercise name editing ── */
+/* ── Inline rename (generic – used for exercises, workouts, templates) ── */
 .ex-name-display{
   cursor:pointer;
   display:inline-flex;
@@ -491,7 +491,7 @@ main#view{ padding:20px; padding-bottom:100px; }
   border:1px solid var(--border);
 }
 
-/* ── NEW: template editor row ── */
+/* ── Template editor rows ── */
 .tpl-ex-card{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -607,7 +607,6 @@ const DEFAULT_TEMPLATES = {
   Custom: { color: 'gray', exercises: [] },
 };
 
-// In-Memory Templates (aus DB geladen oder Fallback auf Defaults)
 let templates = {};
 
 function ex(name, inputType, setDefs, note) {
@@ -686,7 +685,6 @@ async function init() {
   document.getElementById('timerStartPause').addEventListener('click', toggleTimer);
   document.getElementById('timerReset').addEventListener('click', resetTimer);
 
-  // Templates ZUERST laden, dann Workouts
   await loadTemplates();
   await loadWorkouts();
   render();
@@ -701,7 +699,6 @@ async function loadTemplates() {
       return;
     }
     if (!data || data.length === 0) {
-      // Erstes Mal: Default-Templates in die DB schreiben
       const rows = Object.keys(DEFAULT_TEMPLATES).map((k, i) => ({
         name: k,
         color: DEFAULT_TEMPLATES[k].color,
@@ -722,7 +719,6 @@ async function loadTemplates() {
           exercises: Array.isArray(row.exercises) ? row.exercises : [],
         };
       });
-    // Falls neue Default-Templates dazugekommen sind (z.B. Custom), nachziehen
     Object.keys(DEFAULT_TEMPLATES).forEach((k, i) => {
       if (!templates[k]) {
         templates[k] = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES[k]));
@@ -753,6 +749,47 @@ async function saveTemplate(name) {
     console.error('Template-Save-Fehler:', error);
     alert('Fehler beim Speichern des Templates.');
   }
+}
+
+// ─── TEMPLATE UMBENENNEN ───
+// Da name der Primary Key ist: neue Zeile einfügen, alte löschen.
+// Die In-Memory-Objektreferenz bleibt erhalten, damit offene Editor-Sessions
+// weiterhin auf das gleiche Objekt zeigen.
+async function renameTemplate(oldName, newName) {
+  if (!newName || newName === oldName) return false;
+  if (templates[newName]) {
+    alert('Ein Template mit diesem Namen existiert bereits.');
+    return false;
+  }
+  const tpl = templates[oldName];
+  if (!tpl) return false;
+
+  const sortOrder = Object.keys(templates).indexOf(oldName);
+
+  const { error: insErr } = await supabase.from('templates').insert({
+    name: newName,
+    color: tpl.color,
+    exercises: tpl.exercises,
+    sort_order: sortOrder,
+  });
+  if (insErr) {
+    console.error('Rename insert failed:', insErr);
+    alert('Fehler beim Umbenennen des Templates.');
+    return false;
+  }
+
+  const { error: delErr } = await supabase.from('templates').delete().eq('name', oldName);
+  if (delErr) console.error('Rename delete failed:', delErr);
+
+  // In-Memory-Update unter Beibehaltung der Objektreferenz
+  const newTemplates = {};
+  Object.keys(templates).forEach(k => {
+    if (k === oldName) newTemplates[newName] = tpl;
+    else newTemplates[k] = templates[k];
+  });
+  templates = newTemplates;
+
+  return true;
 }
 
 async function saveCurrentWorkoutIfNeeded() {
@@ -862,7 +899,7 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-// ─── TEMPLATE PICKER (bei + NEW WORKOUT) ───
+// ─── TEMPLATE PICKER ───
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -956,7 +993,7 @@ function openTemplateEditor() {
 }
 
 function openSingleTemplateEditor(templateName) {
-  const tpl = templates[templateName];
+  let tpl = templates[templateName];
   if (!tpl) return;
 
   const sheet = document.createElement('div');
@@ -967,8 +1004,10 @@ function openSingleTemplateEditor(templateName) {
   const renderEditor = () => {
     sheet.innerHTML = `
       <div class="modal-inner">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-          <h3 class="modal-title" style="margin:0;">${escapeHtml(templateName)}</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;">
+          <h3 class="modal-title" id="tplTitleDisplay" style="margin:0;cursor:pointer;" title="Tap to rename">
+            ${escapeHtml(templateName)} <span style="font-size:13px;color:var(--gold);opacity:0.75;">✎</span>
+          </h3>
           <button class="btn-text" id="tplClose">Close</button>
         </div>
         <div id="tplExList"></div>
@@ -1010,6 +1049,21 @@ function openSingleTemplateEditor(templateName) {
     });
 
     sheet.querySelector('#tplClose').addEventListener('click', () => sheet.remove());
+
+    // ⭐ Template-Name umbenennen
+    sheet.querySelector('#tplTitleDisplay').addEventListener('click', () => {
+      const titleEl = sheet.querySelector('#tplTitleDisplay');
+      startInlineRename(titleEl, templateName, async (newName) => {
+        if (newName && newName !== templateName) {
+          const ok = await renameTemplate(templateName, newName);
+          if (ok) {
+            templateName = newName;
+            tpl = templates[templateName];
+          }
+        }
+        renderEditor();
+      });
+    });
 
     list.querySelectorAll('[data-remove-i]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -1093,7 +1147,6 @@ function startInlineRename(anchorEl, currentName, onFinish) {
     if (e.key === 'Enter') { e.preventDefault(); finish(true); }
     else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
   });
-  // Blur = cancel (damit Tippen außerhalb nicht versehentlich speichert)
   input.addEventListener('blur', () => {
     setTimeout(() => { if (!finished) finish(false); }, 120);
   });
@@ -1122,7 +1175,9 @@ function renderWorkoutDetail(id) {
     <div class="detail-header">
       <div class="title-row">
         <button class="back-link" id="backBtn">← Back</button>
-        <span class="detail-title">${escapeHtml(w.type)}</span>
+        <span class="detail-title" id="workoutTitleDisplay" style="cursor:pointer;" title="Tap to rename">
+          ${escapeHtml(w.type)} <span style="font-size:13px;color:var(--gold);opacity:0.7;">✎</span>
+        </span>
       </div>
       <button class="btn-outline small" id="deleteWBtn" style="border-color:var(--danger);color:var(--danger);">DELETE</button>
     </div>
@@ -1141,6 +1196,21 @@ function renderWorkoutDetail(id) {
     </div>
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
+
+  // ⭐ Workout-Name umbenennen
+  document.getElementById('workoutTitleDisplay').addEventListener('click', async () => {
+    await saveAllInputs(w);
+    const freshW = workouts.find(x => x.id === w.id);
+    if (!freshW) return;
+    const currentName = freshW.type;
+    const titleEl = document.getElementById('workoutTitleDisplay');
+    startInlineRename(titleEl, currentName, async (newName) => {
+      if (newName && newName !== currentName) {
+        await patchWorkout(w.id, { type: newName });
+      }
+      render();
+    });
+  });
 
   document.getElementById('backBtn').addEventListener('click', async () => {
     await saveCurrentWorkoutIfNeeded();
@@ -1342,10 +1412,8 @@ function renderExerciseCard(w, exItem, exIdx) {
     render();
   });
 
-  // ⭐ NEU: Exercise-Name umbenennen
   const nameDisplay = card.querySelector('[data-renameex]');
   nameDisplay.addEventListener('click', async () => {
-    // Erst alle aktuellen Inputs speichern, damit sie nicht verloren gehen
     await saveAllInputs(w);
     const freshW = workouts.find(x => x.id === w.id);
     if (!freshW) return;
