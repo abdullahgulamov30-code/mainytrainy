@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#221B12" />
 <title>MainyTrainy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,6 +39,8 @@ html,body{
   font-weight:600;
   font-size:16px;
   min-height:100vh;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
 }
 button, input, textarea, select{ font-family:inherit; }
 .topbar{
@@ -133,7 +135,7 @@ button, input, textarea, select{ font-family:inherit; }
   color:var(--gold-strong);
   border-bottom-color:var(--gold);
 }
-main#view{ padding:20px; padding-bottom:100px; }
+main#view{ padding:20px; padding-bottom:140px; }
 .section-label{
   text-transform:uppercase;
   letter-spacing:.14em;
@@ -370,10 +372,12 @@ main#view{ padding:20px; padding-bottom:100px; }
   background:var(--bg-card);
   border:1px solid var(--border-soft);
   cursor:default;
+  transition: transform .1s;
 }
 .cal-cell.empty{ background:transparent; border:none; }
 .cal-cell.today{ border-color:var(--gold); border-width:2px; }
-.cal-cell.trained{ color:#20180C; font-weight:900; }
+.cal-cell.trained{ color:#20180C; font-weight:900; cursor:pointer; }
+.cal-cell.trained:active{ transform:scale(0.92); }
 .cal-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:22px; }
 .legend-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-secondary); font-weight:700; }
 .legend-swatch{ width:13px; height:13px; border-radius:4px; }
@@ -398,6 +402,18 @@ main#view{ padding:20px; padding-bottom:100px; }
   padding:16px; margin-top:16px;
 }
 .chart-container canvas{ max-height:200px; width:100% !important; }
+.chart-title{
+  font-family:var(--font-display);
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.1em;
+  color:var(--gold-strong);
+  text-transform:uppercase;
+  margin-bottom:12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 .overlay{
   position:fixed; inset:0; background:rgba(20,15,8,.85);
   display:flex; align-items:center; justify-content:center; z-index:50;
@@ -558,6 +574,30 @@ main#view{ padding:20px; padding-bottom:100px; }
 .block-btn:last-child{ margin-bottom:0; }
 .block-btn:active{ background:var(--gold); color:#221B12; }
 
+/* Fixed bottom footer for NEW WORKOUT */
+.fixed-footer{
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 65%, rgba(34,27,18,0));
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+}
+.fixed-footer.hidden{ display: none; }
+.fixed-footer .inner{
+  width: 100%;
+  max-width: 640px;
+  pointer-events: auto;
+}
+.fixed-footer button{
+  margin-top: 0;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+
 @media (min-width: 720px){
   main#view{ max-width:640px; margin:0 auto; }
   .topbar, .status-bar, .tabs{ max-width:640px; margin:0 auto; }
@@ -586,6 +626,12 @@ main#view{ padding:20px; padding-bottom:100px; }
 
 <main id="view"></main>
 
+<div id="fixedFooter" class="fixed-footer hidden">
+  <div class="inner">
+    <button id="fixedNewWorkoutBtn" class="btn-gold">+ NEW WORKOUT</button>
+  </div>
+</div>
+
 <div id="timerOverlay" class="overlay hidden">
   <div class="timer-box">
     <div id="timerDisplay" class="timer-display">00:00</div>
@@ -604,7 +650,6 @@ const SUPABASE_URL = "https://sysfeilongpxoyjxkzpq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5c2ZlaWxvbmdweG95anhrenBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MDc4MDAsImV4cCI6MjEwMzE4MzgwMH0.i7B1UdiRLeLEQnkznaKomfccXbfxHbu_n5mOnX1IeWg";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ─── DEFAULT TEMPLATES ───
 const DEFAULT_TEMPLATES = {
   Pull: {
     color: 'blue',
@@ -671,8 +716,14 @@ let currentTab = 'workouts';
 let currentWorkoutId = null;
 let calMonth = new Date();
 let online = navigator.onLine;
-let chartInstance = null;
+let weightChartInstance = null;
+let repsChartInstance = null;
 let saveTimeout = null;
+
+function destroyCharts() {
+  if (weightChartInstance) { weightChartInstance.destroy(); weightChartInstance = null; }
+  if (repsChartInstance) { repsChartInstance.destroy(); repsChartInstance = null; }
+}
 
 function showSaving() {
   const el = document.getElementById('saveIndicator');
@@ -724,6 +775,19 @@ async function init() {
   document.getElementById('timerStartPause').addEventListener('click', toggleTimer);
   document.getElementById('timerReset').addEventListener('click', resetTimer);
 
+  // Fixed bottom NEW WORKOUT button
+  document.getElementById('fixedNewWorkoutBtn').addEventListener('click', openTemplatePicker);
+
+  // Prevent double-tap-zoom on iOS by swallowing rapid taps
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      e.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
   await loadTemplates();
   await loadWorkouts();
   render();
@@ -745,7 +809,6 @@ async function loadTemplates() {
         sort_order: i,
         is_block: DEFAULT_TEMPLATES[k].isBlock === true,
       }));
-      // Try with is_block; fallback without if column missing
       let { error: insErr } = await supabase.from('templates').insert(rows);
       if (insErr && /column .*is_block/i.test(insErr.message)) {
         const rowsNoBlock = rows.map(r => {
@@ -769,7 +832,6 @@ async function loadTemplates() {
           isBlock: row.is_block === true,
         };
       });
-    // Missing default templates (z.B. AW1, AW2) nachziehen
     Object.keys(DEFAULT_TEMPLATES).forEach(async (k, i) => {
       if (!templates[k]) {
         templates[k] = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES[k]));
@@ -892,11 +954,18 @@ function switchTab(tab) {
   currentTab = tab;
   currentWorkoutId = null;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  destroyCharts();
   render();
 }
 
+function updateFixedFooter() {
+  const footer = document.getElementById('fixedFooter');
+  const show = currentTab === 'workouts' && !currentWorkoutId;
+  footer.classList.toggle('hidden', !show);
+}
+
 function render() {
+  updateFixedFooter();
   if (currentWorkoutId) return renderWorkoutDetail(currentWorkoutId);
   if (currentTab === 'workouts') return renderWorkoutsList();
   if (currentTab === 'calendar') return renderCalendar();
@@ -914,7 +983,6 @@ function renderWorkoutsList() {
       </div>
     </div>
     <div id="wlist"></div>
-    <button id="newWorkoutBtn" class="btn-gold" style="margin-top:8px;">+ NEW WORKOUT</button>
   `;
 
   document.getElementById('exportBtn').addEventListener('click', exportData);
@@ -953,8 +1021,6 @@ function renderWorkoutsList() {
     await loadWorkouts();
     render();
   }));
-
-  el.querySelector('#newWorkoutBtn').addEventListener('click', openTemplatePicker);
 }
 
 function exportData() {
@@ -971,7 +1037,6 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-// ─── TEMPLATE PICKER (new workout) ───
 function openTemplatePicker() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -988,7 +1053,6 @@ function openTemplatePicker() {
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
 
   const grid = sheet.querySelector('#tplGrid');
-  // Block-Templates NICHT als Haupt-Workout anzeigen
   Object.keys(templates).filter(k => !templates[k].isBlock).forEach(name => {
     const tpl = templates[name];
     const card = document.createElement('div');
@@ -1032,7 +1096,6 @@ async function createWorkout(typeName, date) {
   render();
 }
 
-// ─── TEMPLATE EDITOR (list) ───
 function openTemplateEditor() {
   const sheet = document.createElement('div');
   sheet.className = 'modal-sheet';
@@ -1148,7 +1211,6 @@ function openSingleTemplateEditor(templateName) {
 
     sheet.querySelector('#tplClose').addEventListener('click', () => sheet.remove());
 
-    // Rename template name
     sheet.querySelector('#tplRenameBtn').addEventListener('click', async () => {
       const newName = prompt('Neuer Template-Name:', templateName);
       if (!newName || !newName.trim()) return;
@@ -1162,13 +1224,11 @@ function openSingleTemplateEditor(templateName) {
       renderEditor();
     });
 
-    // Toggle block
     sheet.querySelector('#tplIsBlock').addEventListener('change', async (e) => {
       tpl.isBlock = e.target.checked;
       await saveTemplate(templateName);
     });
 
-    // Delete template
     sheet.querySelector('#tplDeleteBtn').addEventListener('click', async () => {
       if (!confirm(`Template "${templateName}" wirklich löschen?`)) return;
       await deleteTemplate(templateName);
@@ -1216,7 +1276,6 @@ function openSingleTemplateEditor(templateName) {
   renderEditor();
 }
 
-// ─── INLINE RENAME HELPER ───
 function startInlineRename(anchorEl, currentName, onFinish) {
   const wrapper = document.createElement('div');
   wrapper.className = 'ex-name-editing';
@@ -1275,13 +1334,11 @@ async function renameExercise(workoutId, exIdx, newName) {
   } catch (e) { console.error(e); }
 }
 
-// ─── WORKOUT DETAIL ───
 function renderWorkoutDetail(id) {
   const w = workouts.find(x => x.id === id);
   const el = document.getElementById('view');
   if (!w) { currentWorkoutId = null; return render(); }
 
-  // Block templates für "Add Block" Sektion
   const blockTemplates = Object.keys(templates).filter(k => templates[k].isBlock);
   const blockBoxHtml = blockTemplates.length ? `
     <div class="block-add-box">
@@ -1316,7 +1373,6 @@ function renderWorkoutDetail(id) {
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
 
-  // Block-Buttons füllen
   if (blockTemplates.length) {
     const wrap = document.getElementById('blockBtnWrap');
     blockTemplates.forEach(name => {
@@ -1342,7 +1398,6 @@ function renderWorkoutDetail(id) {
     });
   }
 
-  // Workout name rename
   document.getElementById('workoutTitleDisplay').addEventListener('click', async () => {
     await saveAllInputs(w);
     const freshW = workouts.find(x => x.id === w.id);
@@ -1398,7 +1453,6 @@ function renderWorkoutDetail(id) {
   const list = document.getElementById('exList');
   let lastBlock = null;
   (w.exercises || []).forEach((exItem, exIdx) => {
-    // Block-Header anzeigen wenn neuer Block beginnt
     const curBlock = exItem.block || null;
     if (curBlock && curBlock !== lastBlock) {
       const header = document.createElement('div');
@@ -1722,10 +1776,48 @@ function renderCalendar() {
       cell.classList.add('trained');
       const colorKey = templates[dayWorkouts[0].type]?.color || 'gray';
       cell.style.background = TYPE_COLORS[colorKey];
+      cell.addEventListener('click', () => {
+        if (dayWorkouts.length === 1) {
+          currentWorkoutId = dayWorkouts[0].id;
+          render();
+        } else {
+          openDayWorkoutPicker(dayWorkouts);
+        }
+      });
     }
     cell.textContent = d;
     grid.appendChild(cell);
   }
+}
+
+function openDayWorkoutPicker(workoutsForDay) {
+  const sheet = document.createElement('div');
+  sheet.className = 'modal-sheet';
+  sheet.innerHTML = `
+    <div class="modal-inner">
+      <h3 class="modal-title">Workouts an diesem Tag</h3>
+      <div class="template-grid" id="dayPickList"></div>
+      <button class="btn-outline" id="closeDayPick" style="width:100%;margin-top:16px;">CLOSE</button>
+    </div>`;
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+
+  const list = sheet.querySelector('#dayPickList');
+  workoutsForDay.forEach(w => {
+    const tpl = templates[w.type] || { color: 'gray' };
+    const card = document.createElement('div');
+    card.className = 'template-card';
+    card.innerHTML = `<div><h4>${escapeHtml(w.type)}</h4><p>${(w.exercises || []).length} ex · ${w.finished ? '✅ Finished' : '⏳ In Progress'}</p></div>
+      <span class="template-swatch" style="background:${TYPE_COLORS[tpl.color] || TYPE_COLORS.gray}"></span>`;
+    card.addEventListener('click', () => {
+      sheet.remove();
+      currentWorkoutId = w.id;
+      render();
+    });
+    list.appendChild(card);
+  });
+
+  sheet.querySelector('#closeDayPick').addEventListener('click', () => sheet.remove());
 }
 
 function allKnownExerciseNames() {
@@ -1751,12 +1843,14 @@ function renderAnalysis() {
 
 function renderStatsFor(name) {
   const out = document.getElementById('statOut');
-  if (!name) { out.innerHTML = ''; if (chartInstance) { chartInstance.destroy(); chartInstance = null; } return; }
+  if (!name) { out.innerHTML = ''; destroyCharts(); return; }
 
-  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  destroyCharts();
 
   const sets = [];
-  const history = [];
+  const weightHistory = [];   // { date, kg, volume, oneRM }
+  const repsHistory = [];     // { date, reps }
+
   workouts.forEach(w => {
     (w.exercises || []).forEach(exItem => {
       if (exItem.name !== name) return;
@@ -1769,10 +1863,13 @@ function renderStatsFor(name) {
         const validDur = !isNaN(dur) && dur > 0;
         if (validReps || validKg || validDur) {
           sets.push({ reps, kg, duration: dur, date: w.date });
+          if (validReps) {
+            repsHistory.push({ date: w.date, reps });
+          }
           if (validKg && validReps) {
-            history.push({ date: w.date, kg, volume: kg * reps, oneRM: kg * (1 + reps / 30) });
+            weightHistory.push({ date: w.date, kg, volume: kg * reps, oneRM: kg * (1 + reps / 30) });
           } else if (validKg) {
-            history.push({ date: w.date, kg, volume: null, oneRM: null });
+            weightHistory.push({ date: w.date, kg, volume: null, oneRM: null });
           }
         }
       });
@@ -1783,6 +1880,9 @@ function renderStatsFor(name) {
     out.innerHTML = `<div class="empty-state">Noch keine Werte für „${escapeHtml(name)}“.</div>`;
     return;
   }
+
+  const hasWeight = weightHistory.length > 0;
+  const hasReps = repsHistory.length > 0;
 
   let maxKg = 0, maxVol = 0, maxReps = 0, max1RM = 0;
   let best1RMSet = null;
@@ -1801,13 +1901,20 @@ function renderStatsFor(name) {
   const kgVals = sets.filter(s => s.kg && s.kg > 0).map(s => s.kg);
   const durVals = sets.filter(s => s.duration && s.duration > 0).map(s => s.duration);
 
-  let html = `
-    <div class="best-row">
+  // Best-Header: je nach Verfügbarkeit anzeigen
+  let bestHtml = `<div class="best-row">`;
+  if (hasWeight) {
+    bestHtml += `
       <span class="best-item">🏆 Best KG: <strong>${maxKg > 0 ? maxKg : '—'}</strong></span>
       <span class="best-item">🏆 Best Volumen: <strong>${maxVol > 0 ? Math.round(maxVol) : '—'}</strong></span>
-      <span class="best-item">🏆 Best 1RM: <strong>${max1RM > 0 ? Math.round(max1RM) : '—'}</strong></span>
-    </div>
-  `;
+      <span class="best-item">🏆 Best 1RM: <strong>${max1RM > 0 ? Math.round(max1RM) : '—'}</strong></span>`;
+  }
+  if (hasReps) {
+    bestHtml += `<span class="best-item">🏆 Best Reps: <strong>${maxReps > 0 ? maxReps : '—'}</strong></span>`;
+  }
+  bestHtml += `</div>`;
+
+  let html = bestHtml;
   if (repVals.length) html += statBlock('Reps', repVals);
   if (kgVals.length) html += statBlock('KG', kgVals);
   if (durVals.length) html += statBlock('Duration (sec)', durVals);
@@ -1815,44 +1922,101 @@ function renderStatsFor(name) {
     html += `<div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">💪 Best 1RM am ${formatDate(best1RMSet.date)}: ${Math.round(best1RMSet.kg)} kg × ${best1RMSet.reps} reps → ${Math.round(max1RM)} kg</div>`;
   }
 
-  html += `<div class="chart-container"><canvas id="progChart"></canvas></div>`;
+  // Reps-Chart (immer wenn Reps vorhanden)
+  if (hasReps) {
+    html += `
+      <div class="chart-container">
+        <div class="chart-title">📈 Wiederholungen (Reps) pro Tag</div>
+        <canvas id="repsChart"></canvas>
+      </div>`;
+  }
+  // Weight-Chart (nur wenn Gewicht benutzt wurde)
+  if (hasWeight) {
+    html += `
+      <div class="chart-container">
+        <div class="chart-title">🏋️ Mit Gewicht (KG · 1RM · Volumen)</div>
+        <canvas id="weightChart"></canvas>
+      </div>`;
+  }
+
   out.innerHTML = html;
 
   setTimeout(() => {
-    const ctx = document.getElementById('progChart')?.getContext('2d');
-    if (!ctx) return;
-    const map = {};
-    history.forEach(h => {
-      if (!map[h.date]) map[h.date] = { kgSum: 0, count: 0, oneRMSum: 0, oneRMCnt: 0, volumeSum: 0, volumeCnt: 0 };
-      if (h.kg !== null) { map[h.date].kgSum += h.kg; map[h.date].count++; }
-      if (h.oneRM !== null) { map[h.date].oneRMSum += h.oneRM; map[h.date].oneRMCnt++; }
-      if (h.volume !== null) { map[h.date].volumeSum += h.volume; map[h.date].volumeCnt++; }
-    });
-    const sortedDates = Object.keys(map).sort();
-    const kgData = sortedDates.map(d => map[d].count ? map[d].kgSum / map[d].count : null);
-    const oneRMData = sortedDates.map(d => map[d].oneRMCnt ? map[d].oneRMSum / map[d].oneRMCnt : null);
-    const volumeData = sortedDates.map(d => map[d].volumeCnt ? map[d].volumeSum / map[d].volumeCnt : null);
+    // ─── Reps-Chart ───
+    if (hasReps) {
+      const ctx = document.getElementById('repsChart')?.getContext('2d');
+      if (ctx) {
+        const map = {};
+        repsHistory.forEach(h => {
+          if (!map[h.date]) map[h.date] = { sum: 0, count: 0, max: 0 };
+          map[h.date].sum += h.reps;
+          map[h.date].count++;
+          if (h.reps > map[h.date].max) map[h.date].max = h.reps;
+        });
+        const sortedDates = Object.keys(map).sort();
+        const avgReps = sortedDates.map(d => map[d].count ? map[d].sum / map[d].count : null);
+        const maxRepsData = sortedDates.map(d => map[d].max);
 
-    chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: sortedDates.map(d => formatDate(d)),
-        datasets: [
-          { label: 'Ø KG', data: kgData, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4 },
-          { label: 'Ø 1RM', data: oneRMData, borderColor: '#5FD08A', backgroundColor: 'rgba(95,208,138,0.1)', tension: 0.2, pointRadius: 4 },
-          { label: 'Ø Volumen', data: volumeData, borderColor: '#5B8DEF', backgroundColor: 'rgba(91,141,239,0.1)', tension: 0.2, pointRadius: 4, hidden: true }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: { legend: { labels: { color: '#CDBE9C', font: { weight: 'bold' } } } },
-        scales: {
-          y: { grid: { color: '#3A2F1C' }, ticks: { color: '#9A8B6C' } },
-          x: { grid: { display: false }, ticks: { color: '#9A8B6C', maxRotation: 45 } }
-        }
+        repsChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: sortedDates.map(d => formatDate(d)),
+            datasets: [
+              { label: 'Ø Reps', data: avgReps, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4, fill: true },
+              { label: 'Max Reps', data: maxRepsData, borderColor: '#EF9548', backgroundColor: 'rgba(239,149,72,0.05)', tension: 0.2, pointRadius: 3, borderDash: [5, 4] }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { labels: { color: '#CDBE9C', font: { weight: 'bold' } } } },
+            scales: {
+              y: { grid: { color: '#3A2F1C' }, ticks: { color: '#9A8B6C' } },
+              x: { grid: { display: false }, ticks: { color: '#9A8B6C', maxRotation: 45 } }
+            }
+          }
+        });
       }
-    });
+    }
+
+    // ─── Weight-Chart ───
+    if (hasWeight) {
+      const ctx = document.getElementById('weightChart')?.getContext('2d');
+      if (ctx) {
+        const map = {};
+        weightHistory.forEach(h => {
+          if (!map[h.date]) map[h.date] = { kgSum: 0, count: 0, oneRMSum: 0, oneRMCnt: 0, volumeSum: 0, volumeCnt: 0 };
+          if (h.kg !== null) { map[h.date].kgSum += h.kg; map[h.date].count++; }
+          if (h.oneRM !== null) { map[h.date].oneRMSum += h.oneRM; map[h.date].oneRMCnt++; }
+          if (h.volume !== null) { map[h.date].volumeSum += h.volume; map[h.date].volumeCnt++; }
+        });
+        const sortedDates = Object.keys(map).sort();
+        const kgData = sortedDates.map(d => map[d].count ? map[d].kgSum / map[d].count : null);
+        const oneRMData = sortedDates.map(d => map[d].oneRMCnt ? map[d].oneRMSum / map[d].oneRMCnt : null);
+        const volumeData = sortedDates.map(d => map[d].volumeCnt ? map[d].volumeSum / map[d].volumeCnt : null);
+
+        weightChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: sortedDates.map(d => formatDate(d)),
+            datasets: [
+              { label: 'Ø KG', data: kgData, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4 },
+              { label: 'Ø 1RM', data: oneRMData, borderColor: '#5FD08A', backgroundColor: 'rgba(95,208,138,0.1)', tension: 0.2, pointRadius: 4 },
+              { label: 'Ø Volumen', data: volumeData, borderColor: '#5B8DEF', backgroundColor: 'rgba(91,141,239,0.1)', tension: 0.2, pointRadius: 4, hidden: true }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { labels: { color: '#CDBE9C', font: { weight: 'bold' } } } },
+            scales: {
+              y: { grid: { color: '#3A2F1C' }, ticks: { color: '#9A8B6C' } },
+              x: { grid: { display: false }, ticks: { color: '#9A8B6C', maxRotation: 45 } }
+            }
+          }
+        });
+      }
+    }
   }, 50);
 }
 
