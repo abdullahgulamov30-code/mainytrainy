@@ -245,8 +245,26 @@ main#view{ padding:20px; padding-bottom:140px; }
   font-size:11px; font-weight:800; letter-spacing:.06em;
   padding:3px 8px; border-radius:5px; margin-top:2px;
 }
-.exercise-actions{ display:flex; align-items:center; gap:14px; }
+.exercise-actions{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .remove-link{ background:none; border:none; color:var(--danger); font-weight:800; font-size:12.5px; letter-spacing:.06em; cursor:pointer; }
+.ex-btn-last{
+  background: transparent;
+  border: 1.5px solid var(--gold);
+  color: var(--gold-strong);
+  border-radius: 6px;
+  min-width: 36px;
+  height: 32px;
+  padding: 0 8px;
+  font-weight: 900;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background .12s, color .12s;
+}
+.ex-btn-last:active{ background: var(--gold); color: #221B12; }
 .set-table{ width:100%; border-collapse:collapse; margin-top:12px; }
 .set-table th{
   text-align:left; font-size:11px; letter-spacing:.06em; color:var(--text-muted);
@@ -442,7 +460,6 @@ main#view{ padding:20px; padding-bottom:140px; }
 }
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 18px; }
 
-/* Inline rename */
 .ex-name-display{
   cursor:pointer;
   display:inline-flex;
@@ -492,7 +509,6 @@ main#view{ padding:20px; padding-bottom:140px; }
   border:1px solid var(--border);
 }
 
-/* Template editor */
 .tpl-ex-card{
   background:var(--bg-card);
   border:1px solid var(--border);
@@ -524,7 +540,6 @@ main#view{ padding:20px; padding-bottom:140px; }
   letter-spacing:.06em;
 }
 
-/* Block header (in workout detail) */
 .block-header{
   display:flex;
   align-items:center;
@@ -545,7 +560,6 @@ main#view{ padding:20px; padding-bottom:140px; }
 }
 .block-header:first-child{ margin-top:0; }
 
-/* Add-block section */
 .block-add-box{
   background:transparent;
   border:1px dashed var(--border);
@@ -574,18 +588,6 @@ main#view{ padding:20px; padding-bottom:140px; }
 .block-btn:last-child{ margin-bottom:0; }
 .block-btn:active{ background:var(--gold); color:#221B12; }
 
-/* COPY LAST TIME button area */
-.copy-last-row{ margin-bottom:18px; }
-.copy-last-hint{
-  font-size:11px;
-  color:var(--text-muted);
-  font-weight:700;
-  text-align:center;
-  margin-top:6px;
-  letter-spacing:.04em;
-}
-
-/* Fixed bottom footer for NEW WORKOUT */
 .fixed-footer{
   position: fixed;
   bottom: 0;
@@ -1343,96 +1345,69 @@ async function renameExercise(workoutId, exIdx, newName) {
   } catch (e) { console.error(e); }
 }
 
-// ─── PREVIOUS SAME TYPE WORKOUT (für "Werte vom letzten Mal") ───
-function getPreviousSameTypeWorkout(currentWorkout) {
-  const curDate = currentWorkout.date || '';
-  const curCreated = String(currentWorkout.created_at || '');
-  const candidates = workouts.filter(x => {
-    if (x.id === currentWorkout.id) return false;
-    if (x.type !== currentWorkout.type) return false;
-    if (!x.date || !curDate) return false;
-    if (x.date < curDate) return true;
-    if (x.date === curDate && String(x.created_at || '') < curCreated) return true;
-    return false;
-  });
-  candidates.sort((a, b) => {
-    const d = String(b.date || '').localeCompare(String(a.date || ''));
-    if (d !== 0) return d;
-    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
-  });
-  return candidates[0] || null;
-}
-
-async function copyFromLastTime() {
+// ─── Pro-Übung: Werte vom letzten Mal übernehmen ───
+async function copyLastForExercise(w, exIdx) {
   if (!currentWorkoutId) return;
-  const w = workouts.find(x => x.id === currentWorkoutId);
-  if (!w) return;
 
-  // Erst aktuelle Eingaben sichern
   await saveAllInputs(w);
-  const fresh = workouts.find(x => x.id === currentWorkoutId);
-  if (!fresh) return;
+  const freshW = workouts.find(x => x.id === currentWorkoutId);
+  if (!freshW) return;
+  const currentEx = freshW.exercises[exIdx];
+  if (!currentEx) return;
+  const exName = currentEx.name;
 
-  const hasAnyValue = (fresh.exercises || []).some(exItem =>
-    (exItem.sets || []).some(s => (s.reps && s.reps !== '') || (s.kg && s.kg !== '') || (s.duration && s.duration !== ''))
-  );
-  if (hasAnyValue) {
-    if (!confirm('Werte vom letzten Mal übernehmen?\n\nAchtung: Bereits eingegebene Werte in diesem Workout werden überschrieben.')) return;
-  }
-
-  const prevSameType = getPreviousSameTypeWorkout(fresh);
-
-  const exercises = JSON.parse(JSON.stringify(fresh.exercises || []));
-  let copiedEx = 0;
-
-  exercises.forEach(exItem => {
-    // Quelle: erst gleicher Workout-Typ, sonst letztes Vorkommen dieser Übung
-    let sourceEx = null;
-    if (prevSameType) {
-      sourceEx = (prevSameType.exercises || []).find(e => e.name === exItem.name) || null;
+  // Finde letztes Workout (vor dem aktuellen) mit dieser Übung
+  const curDate = freshW.date || '';
+  const curCreated = String(freshW.created_at || '');
+  let best = null;
+  workouts.forEach(other => {
+    if (other.id === freshW.id) return;
+    if (!other.date) return;
+    let isEarlier = false;
+    if (other.date < curDate) isEarlier = true;
+    else if (other.date === curDate && String(other.created_at || '') < curCreated) isEarlier = true;
+    if (!isEarlier) return;
+    const found = (other.exercises || []).find(e => e.name === exName);
+    if (!found) return;
+    if (!best || other.date > best.workout.date ||
+        (other.date === best.workout.date && String(other.created_at || '') > String(best.workout.created_at || ''))) {
+      best = { workout: other, exercise: found };
     }
-    if (!sourceEx) {
-      const prevW = getPreviousWorkoutWithExercise(fresh, exItem.name);
-      if (prevW) {
-        sourceEx = (prevW.exercises || []).find(e => e.name === exItem.name) || null;
-      }
-    }
-    if (!sourceEx || !Array.isArray(sourceEx.sets) || !sourceEx.sets.length) return;
-
-    const srcSets = sourceEx.sets;
-    if (!Array.isArray(exItem.sets)) exItem.sets = [];
-    if (!Array.isArray(exItem.setMeta)) exItem.setMeta = [];
-
-    let anyCopied = false;
-    for (let i = 0; i < srcSets.length; i++) {
-      const src = srcSets[i] || {};
-      // Wenn aktuelles Workout weniger Sets hat → zusätzliche Sets anlegen
-      if (!exItem.sets[i]) {
-        exItem.sets[i] = { reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' };
-        exItem.setMeta[i] = (sourceEx.setMeta && sourceEx.setMeta[i]) ? { ...sourceEx.setMeta[i] } : {};
-      }
-      const newSet = exItem.sets[i];
-      const newReps = src.reps != null ? String(src.reps) : '';
-      const newKg = src.kg != null ? String(src.kg) : '';
-      const newDur = src.duration != null ? String(src.duration) : '';
-      const newRpe = src.rpe != null ? String(src.rpe) : '';
-
-      if (newReps || newKg || newDur || newRpe) anyCopied = true;
-      newSet.reps = newReps;
-      newSet.kg = newKg;
-      newSet.duration = newDur;
-      newSet.rpe = newRpe;
-      newSet.done = false; // nicht als erledigt markieren
-    }
-    if (anyCopied) copiedEx++;
   });
 
-  if (!copiedEx) {
-    alert('Keine passenden Werte vom letzten Mal gefunden.\n\nTipp: Es gibt noch kein früheres Workout mit diesen Übungen.');
+  if (!best || !Array.isArray(best.exercise.sets) || !best.exercise.sets.length) {
+    alert(`Kein früheres Workout mit "${exName}" gefunden.`);
     return;
   }
 
-  await patchWorkout(fresh.id, { exercises });
+  const hasValue = (currentEx.sets || []).some(s =>
+    (s.reps && s.reps !== '') || (s.kg && s.kg !== '') || (s.duration && s.duration !== '')
+  );
+  if (hasValue) {
+    if (!confirm(`Werte für "${exName}" aus Workout vom ${formatDate(best.workout.date)} übernehmen?\nBestehende Werte werden überschrieben.`)) return;
+  }
+
+  const exercises = JSON.parse(JSON.stringify(freshW.exercises || []));
+  const target = exercises[exIdx];
+  if (!target) return;
+  if (!Array.isArray(target.sets)) target.sets = [];
+  if (!Array.isArray(target.setMeta)) target.setMeta = [];
+
+  const srcSets = best.exercise.sets;
+  for (let i = 0; i < srcSets.length; i++) {
+    const src = srcSets[i] || {};
+    if (!target.sets[i]) {
+      target.sets[i] = { reps: '', kg: '', duration: '', done: false, rpe: '', setNotes: '' };
+      target.setMeta[i] = (best.exercise.setMeta && best.exercise.setMeta[i]) ? { ...best.exercise.setMeta[i] } : {};
+    }
+    target.sets[i].reps = src.reps != null ? String(src.reps) : '';
+    target.sets[i].kg = src.kg != null ? String(src.kg) : '';
+    target.sets[i].duration = src.duration != null ? String(src.duration) : '';
+    target.sets[i].rpe = src.rpe != null ? String(src.rpe) : '';
+    target.sets[i].done = false;
+  }
+
+  await patchWorkout(freshW.id, { exercises });
   render();
 }
 
@@ -1440,11 +1415,6 @@ function renderWorkoutDetail(id) {
   const w = workouts.find(x => x.id === id);
   const el = document.getElementById('view');
   if (!w) { currentWorkoutId = null; return render(); }
-
-  const prevSameType = getPreviousSameTypeWorkout(w);
-  const copyHintText = prevSameType
-    ? `Zieht Werte aus „${prevSameType.type}“ vom ${formatDate(prevSameType.date)}`
-    : `Kein früheres Workout dieses Typs – nutzt pro Übung das letzte Vorkommen`;
 
   const blockTemplates = Object.keys(templates).filter(k => templates[k].isBlock);
   const blockBoxHtml = blockTemplates.length ? `
@@ -1464,11 +1434,6 @@ function renderWorkoutDetail(id) {
       <button class="btn-outline small" id="deleteWBtn" style="border-color:var(--danger);color:var(--danger);">DELETE</button>
     </div>
 
-    <div class="copy-last-row">
-      <button class="btn-outline" id="copyLastBtn" style="width:100%;padding:14px;font-size:12.5px;">⤓ WERTE VOM LETZTEN MAL</button>
-      <div class="copy-last-hint">${escapeHtml(copyHintText)}</div>
-    </div>
-
     <div id="exList"></div>
     <div class="add-exercise-box">
       <div class="field-label">Add Exercise</div>
@@ -1485,8 +1450,6 @@ function renderWorkoutDetail(id) {
     ${blockBoxHtml}
     <button class="btn-gold-outline" id="finishBtn">${w.finished ? 'RE-OPEN WORKOUT' : 'FINISH WORKOUT'}</button>
   `;
-
-  document.getElementById('copyLastBtn').addEventListener('click', copyFromLastTime);
 
   if (blockTemplates.length) {
     const wrap = document.getElementById('blockBtnWrap');
@@ -1692,6 +1655,7 @@ function renderExerciseCard(w, exItem, exIdx) {
         ${exItem.note ? `<div class="set-target" style="margin-top:6px;">${escapeHtml(exItem.note)}</div>` : ''}
       </div>
       <div class="exercise-actions">
+        <button class="ex-btn-last" data-copylast="${exIdx}" title="Werte vom letzten Mal übernehmen">↺</button>
         <button class="remove-link" data-removeex="${exIdx}">REMOVE</button>
       </div>
     </div>
@@ -1734,6 +1698,10 @@ function renderExerciseCard(w, exItem, exIdx) {
     exercises[exIdx].setMeta.push({});
     await patchWorkout(w.id, { exercises });
     render();
+  });
+
+  card.querySelector('[data-copylast]').addEventListener('click', () => {
+    copyLastForExercise(w, exIdx);
   });
 
   const nameDisplay = card.querySelector('[data-renameex]');
