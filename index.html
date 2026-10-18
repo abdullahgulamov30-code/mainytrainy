@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -432,17 +432,94 @@ main#view{ padding:20px; padding-bottom:140px; }
   align-items:center;
   gap:8px;
 }
+
+/* ── TIMER ── */
 .overlay{
   position:fixed; inset:0; background:rgba(20,15,8,.85);
   display:flex; align-items:center; justify-content:center; z-index:50;
+  padding: 16px;
 }
 .overlay.hidden{ display:none; }
 .timer-box{
   background:var(--bg-card); border:1px solid var(--border); border-radius:16px;
-  padding:32px; text-align:center; width:80%; max-width:320px;
+  padding:26px 22px;
+  width:100%;
+  max-width:380px;
+}
+.timer-tabs{
+  display:flex; gap:8px; margin-bottom:18px;
+}
+.timer-tab{
+  flex:1;
+  background:transparent;
+  border:1.5px solid var(--border);
+  color:var(--text-muted);
+  border-radius:var(--radius-sm);
+  padding:12px 8px;
+  font-weight:800;
+  letter-spacing:.08em;
+  font-size:12px;
+  cursor:pointer;
+  transition: all .15s;
+}
+.timer-tab.active{
+  background:var(--gold);
+  border-color:var(--gold);
+  color:#221B12;
+}
+.timer-countdown-inputs{
+  display:flex; gap:10px; margin-bottom:12px;
+}
+.timer-input-group{ flex:1; }
+.timer-input-label{
+  font-size:11px; color:var(--text-muted); font-weight:800;
+  letter-spacing:.1em; display:block; margin-bottom:6px; text-align:center;
+}
+.timer-input{
+  width:100%;
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  color:var(--gold-strong);
+  border-radius:8px;
+  padding:14px 8px;
+  font-size:26px;
+  font-weight:900;
+  text-align:center;
+  font-family:var(--font-display);
+  -webkit-appearance:none;
+  outline:none;
+}
+.timer-input:focus{ border-color:var(--gold); }
+.timer-presets{
+  display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;
+}
+.timer-preset{
+  flex:1; min-width:60px;
+  background:transparent;
+  border:1px dashed var(--border);
+  color:var(--text-secondary);
+  border-radius:6px;
+  padding:8px 6px;
+  font-weight:800;
+  letter-spacing:.06em;
+  font-size:11px;
+  cursor:pointer;
+}
+.timer-preset:active{
+  background:var(--gold); color:#221B12; border-color:var(--gold);
 }
 .timer-display{
-  font-family:var(--font-display); font-size:52px; font-weight:900; color:var(--gold-strong); margin-bottom:20px;
+  font-family:var(--font-display); font-size:56px; font-weight:900; color:var(--gold-strong);
+  margin:12px 0 22px; text-align:center; letter-spacing:.04em;
+  line-height: 1;
+}
+.timer-display.finished{
+  color:var(--red);
+  animation: finishPulse 0.9s ease infinite;
+}
+@keyframes finishPulse {
+  0%, 100% { text-shadow: 0 0 30px rgba(225,91,77,0.6); }
+  50% { text-shadow: 0 0 80px rgba(225,91,77,1), 0 0 40px rgba(225,91,77,0.8); }
 }
 .timer-controls{ display:flex; gap:10px; margin-bottom:14px; }
 .btn-text{ background:none; border:none; color:var(--text-muted); font-weight:700; cursor:pointer; }
@@ -647,12 +724,37 @@ main#view{ padding:20px; padding-bottom:140px; }
 
 <div id="timerOverlay" class="overlay hidden">
   <div class="timer-box">
-    <div id="timerDisplay" class="timer-display">00:00</div>
+    <div class="timer-tabs">
+      <button class="timer-tab active" data-mode="countdown">COUNTDOWN</button>
+      <button class="timer-tab" data-mode="stopwatch">STOPWATCH</button>
+    </div>
+
+    <div id="countdownInputs" class="timer-countdown-inputs">
+      <div class="timer-input-group">
+        <label class="timer-input-label">MINUTES</label>
+        <input type="number" id="timerMin" class="timer-input" min="0" max="99" value="3" inputmode="numeric" />
+      </div>
+      <div class="timer-input-group">
+        <label class="timer-input-label">SECONDS</label>
+        <input type="number" id="timerSec" class="timer-input" min="0" max="59" value="0" inputmode="numeric" />
+      </div>
+    </div>
+
+    <div id="countdownPresets" class="timer-presets">
+      <button class="timer-preset" data-sec="30">30s</button>
+      <button class="timer-preset" data-sec="60">1 min</button>
+      <button class="timer-preset" data-sec="120">2 min</button>
+      <button class="timer-preset" data-sec="180">3 min</button>
+      <button class="timer-preset" data-sec="300">5 min</button>
+    </div>
+
+    <div id="timerDisplay" class="timer-display">03:00</div>
+
     <div class="timer-controls">
       <button id="timerStartPause" class="btn-gold">START</button>
       <button id="timerReset" class="btn-outline">RESET</button>
     </div>
-    <button id="timerClose" class="btn-text">Close</button>
+    <button id="timerClose" class="btn-text" style="width:100%;">Close</button>
   </div>
 </div>
 
@@ -733,6 +835,14 @@ let weightChartInstance = null;
 let repsChartInstance = null;
 let saveTimeout = null;
 
+// ── Timer state ──
+let timerMode = 'countdown'; // 'countdown' | 'stopwatch'
+let timerSeconds = 180;
+let timerTarget = 180;
+let timerRunning = false;
+let timerFinished = false;
+let timerInterval = null;
+
 function destroyCharts() {
   if (weightChartInstance) { weightChartInstance.destroy(); weightChartInstance = null; }
   if (repsChartInstance) { repsChartInstance.destroy(); repsChartInstance = null; }
@@ -783,10 +893,41 @@ async function init() {
     await saveCurrentWorkoutIfNeeded();
   });
 
+  // Timer buttons
   document.getElementById('timerBtn').addEventListener('click', openTimer);
   document.getElementById('timerClose').addEventListener('click', closeTimer);
   document.getElementById('timerStartPause').addEventListener('click', toggleTimer);
   document.getElementById('timerReset').addEventListener('click', resetTimer);
+
+  // Timer mode tabs
+  document.querySelectorAll('.timer-tab').forEach(tab => {
+    tab.addEventListener('click', () => setTimerMode(tab.dataset.mode));
+  });
+
+  // Timer preset buttons
+  document.querySelectorAll('.timer-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sec = parseInt(btn.dataset.sec) || 0;
+      document.getElementById('timerMin').value = Math.floor(sec / 60);
+      document.getElementById('timerSec').value = sec % 60;
+      if (!timerRunning && !timerFinished && timerMode === 'countdown') {
+        timerSeconds = sec;
+        timerTarget = sec;
+        updateTimerDisplay();
+      }
+    });
+  });
+
+  // Timer input changes
+  ['timerMin', 'timerSec'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      if (!timerRunning && !timerFinished && timerMode === 'countdown') {
+        timerSeconds = readCountdownInput();
+        timerTarget = timerSeconds;
+        updateTimerDisplay();
+      }
+    });
+  });
 
   document.getElementById('fixedNewWorkoutBtn').addEventListener('click', openTemplatePicker);
 
@@ -801,14 +942,211 @@ async function init() {
 
   await loadTemplates();
   await loadWorkouts();
+  updateTimerDisplay();
   render();
 }
+
+// ── TIMER ──
+
+function openTimer() {
+  document.getElementById('timerOverlay').classList.remove('hidden');
+}
+
+function closeTimer() {
+  document.getElementById('timerOverlay').classList.add('hidden');
+}
+
+function readCountdownInput() {
+  const m = parseInt(document.getElementById('timerMin').value) || 0;
+  const s = parseInt(document.getElementById('timerSec').value) || 0;
+  return m * 60 + s;
+}
+
+function setTimerMode(mode) {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  timerRunning = false;
+  timerFinished = false;
+  timerMode = mode;
+
+  document.querySelectorAll('.timer-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+
+  const cd = document.getElementById('countdownInputs');
+  const cp = document.getElementById('countdownPresets');
+  if (mode === 'countdown') {
+    cd.style.display = 'flex';
+    cp.style.display = 'flex';
+    timerSeconds = readCountdownInput();
+    timerTarget = timerSeconds;
+  } else {
+    cd.style.display = 'none';
+    cp.style.display = 'none';
+    timerSeconds = 0;
+    timerTarget = 0;
+  }
+
+  document.getElementById('timerStartPause').textContent = 'START';
+  document.getElementById('timerDisplay').classList.remove('finished', 'running');
+  updateTimerDisplay();
+}
+
+function toggleTimer() {
+  if (timerFinished) {
+    // Dismiss finished → reset and go back to idle
+    setTimerMode(timerMode);
+    return;
+  }
+
+  if (timerRunning) {
+    timerRunning = false;
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    document.getElementById('timerStartPause').textContent = 'RESUME';
+    return;
+  }
+
+  // Unlock audio on user gesture
+  unlockAudio();
+
+  // Fresh start
+  if (timerMode === 'countdown' && timerSeconds <= 0) {
+    timerSeconds = readCountdownInput();
+    timerTarget = timerSeconds;
+    if (timerSeconds <= 0) {
+      alert('Please set minutes or seconds first.');
+      return;
+    }
+  }
+
+  timerRunning = true;
+  timerFinished = false;
+  document.getElementById('timerStartPause').textContent = 'PAUSE';
+  document.getElementById('timerDisplay').classList.remove('finished');
+
+  timerInterval = setInterval(() => {
+    if (timerMode === 'countdown') {
+      timerSeconds--;
+      if (timerSeconds <= 0) {
+        timerSeconds = 0;
+        timerRunning = false;
+        timerFinished = true;
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        document.getElementById('timerStartPause').textContent = 'DISMISS';
+        document.getElementById('timerDisplay').classList.add('finished');
+        updateTimerDisplay();
+        playBell();
+        return;
+      }
+    } else {
+      timerSeconds++;
+    }
+    updateTimerDisplay();
+  }, 1000);
+
+  updateTimerDisplay();
+}
+
+function resetTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  timerRunning = false;
+  timerFinished = false;
+  if (timerMode === 'countdown') {
+    timerSeconds = readCountdownInput();
+    timerTarget = timerSeconds;
+  } else {
+    timerSeconds = 0;
+    timerTarget = 0;
+  }
+  document.getElementById('timerStartPause').textContent = 'START';
+  document.getElementById('timerDisplay').classList.remove('finished', 'running');
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timerDisplay');
+  if (!el) return;
+  const m = Math.floor(timerSeconds / 60);
+  const s = timerSeconds % 60;
+  el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ── Bell sound (Web Audio API) ──
+let _audioCtx = null;
+
+function getAudioCtx() {
+  if (!_audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { _audioCtx = new AC(); } catch (e) { return null; }
+  }
+  if (_audioCtx.state === 'suspended') {
+    _audioCtx.resume().catch(() => {});
+  }
+  return _audioCtx;
+}
+
+// Must be called on a user gesture to unlock audio on iOS
+function unlockAudio() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  // Silent buffer to fully unlock on iOS
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch (e) {}
+}
+
+function playBell() {
+  const ctx = getAudioCtx();
+
+  // Vibration for mobile (works even without audio)
+  if (navigator.vibrate) {
+    try { navigator.vibrate([250, 120, 250, 120, 500]); } catch (e) {}
+  }
+
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+  // 3 distinct "dings" with bell-like harmonics
+  const dings = 3;
+  const spacing = 0.48;
+  const t0 = ctx.currentTime + 0.03;
+
+  for (let i = 0; i < dings; i++) {
+    const start = t0 + i * spacing;
+    const harmonics = [
+      { f: 1046.5, g: 0.28, d: 1.10 },  // C6 fundamental
+      { f: 2093.0, g: 0.14, d: 0.85 },  // C7
+      { f: 2637.0, g: 0.08, d: 0.65 },  // E7
+      { f: 1567.98, g: 0.10, d: 0.95 }, // G6
+    ];
+    harmonics.forEach(({ f, g, d }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(g, start + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + d);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + d + 0.05);
+    });
+  }
+}
+
+// ── rest of app (English) ──
 
 async function loadTemplates() {
   try {
     const { data, error } = await supabase.from('templates').select('*');
     if (error) {
-      console.warn('Templates-Tabelle nicht erreichbar, nutze Defaults:', error.message);
+      console.warn('Templates table not reachable, using defaults:', error.message);
       templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
       return;
     }
@@ -828,7 +1166,7 @@ async function loadTemplates() {
         });
         await supabase.from('templates').insert(rowsNoBlock);
       } else if (insErr) {
-        console.warn('Templates konnten nicht geseedet werden:', insErr.message);
+        console.warn('Could not seed templates:', insErr.message);
       }
       templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
       return;
@@ -861,7 +1199,7 @@ async function loadTemplates() {
       }
     });
   } catch (e) {
-    console.warn('Template-Load-Fehler, nutze Defaults:', e);
+    console.warn('Template load error, using defaults:', e);
     templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
   }
 }
@@ -883,8 +1221,8 @@ async function saveTemplate(name) {
     ({ error } = await supabase.from('templates').upsert(base, { onConflict: 'name' }));
   }
   if (error) {
-    console.error('Template-Save-Fehler:', error);
-    alert('Fehler beim Speichern des Templates.');
+    console.error('Template save error:', error);
+    alert('Error saving template.');
   }
 }
 
@@ -892,14 +1230,14 @@ async function deleteTemplate(name) {
   const tpl = templates[name];
   if (!tpl) return;
   const { error } = await supabase.from('templates').delete().eq('name', name);
-  if (error) { console.error(error); alert('Fehler beim Löschen.'); return; }
+  if (error) { console.error(error); alert('Error deleting.'); return; }
   delete templates[name];
 }
 
 async function renameTemplate(oldName, newName) {
   if (!newName || newName === oldName) return false;
   if (templates[newName]) {
-    alert('Ein Template mit diesem Namen existiert bereits.');
+    alert('A template with this name already exists.');
     return false;
   }
   const tpl = templates[oldName];
@@ -921,7 +1259,7 @@ async function renameTemplate(oldName, newName) {
   }
   if (insErr) {
     console.error('Rename insert failed:', insErr);
-    alert('Fehler beim Umbenennen.');
+    alert('Error renaming.');
     return false;
   }
 
@@ -1001,7 +1339,7 @@ function renderWorkoutsList() {
 
   const list = el.querySelector('#wlist');
   if (!workouts.length) {
-    list.innerHTML = `<div class="empty-state">Noch keine Workouts geloggt.<br>Starte dein erstes Workout unten.</div>`;
+    list.innerHTML = `<div class="empty-state">No workouts logged yet.<br>Start your first workout below.</div>`;
   }
   workouts.forEach(w => {
     const card = document.createElement('div');
@@ -1027,7 +1365,7 @@ function renderWorkoutsList() {
   }));
   list.querySelectorAll('[data-delete]').forEach(n => n.addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!confirm('Workout wirklich löschen?')) return;
+    if (!confirm('Delete this workout?')) return;
     await supabase.from('workouts').delete().eq('id', n.dataset.delete);
     await loadWorkouts();
     render();
@@ -1035,7 +1373,7 @@ function renderWorkoutsList() {
 }
 
 function exportData() {
-  if (!workouts.length) { alert('Keine Daten zum Exportieren.'); return; }
+  if (!workouts.length) { alert('No data to export.'); return; }
   const dataStr = JSON.stringify({ workouts, templates }, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1077,7 +1415,7 @@ function openTemplatePicker() {
       let workoutName = name;
 
       if (name === 'Custom') {
-        workoutName = prompt('Gib den Namen für dein Workout ein:', 'Mein Workout');
+        workoutName = prompt('Enter workout name:', 'My Workout');
         if (!workoutName || workoutName.trim() === '') return;
         workoutName = workoutName.trim();
       }
@@ -1101,7 +1439,7 @@ async function createWorkout(typeName, date) {
     exercises,
   };
   const { data, error } = await supabase.from('workouts').insert(payload).select().single();
-  if (error) { alert('Fehler beim Speichern.'); console.error(error); return; }
+  if (error) { alert('Error saving.'); console.error(error); return; }
   workouts.unshift(data);
   currentWorkoutId = data.id;
   render();
@@ -1118,7 +1456,7 @@ function openTemplateEditor() {
       <div class="modal-inner">
         <h3 class="modal-title">Edit Templates</h3>
         <p style="color:var(--text-muted);font-size:13px;font-weight:700;margin:-8px 0 16px;">
-          Templates mit dem Block-Häkchen erscheinen nur in der „Add Block"-Sektion innerhalb eines Workouts (z.B. Armwrestling).
+          Templates with the block checkbox only appear in the "Add Block" section inside a workout (e.g. Armwrestling).
         </p>
         <button class="btn-gold" id="addNewTplBtn" style="margin-bottom:16px;">+ NEW TEMPLATE</button>
         <div class="template-grid" id="tplList"></div>
@@ -1142,10 +1480,10 @@ function openTemplateEditor() {
 
     sheet.querySelector('#closeTplEditor').addEventListener('click', () => sheet.remove());
     sheet.querySelector('#addNewTplBtn').addEventListener('click', async () => {
-      const name = prompt('Name für neues Template:', 'Neues Template');
+      const name = prompt('Name for new template:', 'New Template');
       if (!name || !name.trim()) return;
       const trimmed = name.trim();
-      if (templates[trimmed]) { alert('Ein Template mit diesem Namen existiert bereits.'); return; }
+      if (templates[trimmed]) { alert('A template with this name already exists.'); return; }
       templates[trimmed] = { color: 'gray', exercises: [], isBlock: false };
       await saveTemplate(trimmed);
       renderList();
@@ -1177,7 +1515,7 @@ function openSingleTemplateEditor(templateName) {
 
         <label style="display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
           <input type="checkbox" id="tplIsBlock" ${tpl.isBlock ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;" />
-          <span style="font-size:13px;font-weight:700;color:var(--text-secondary);">Als Block anzeigen (z.B. Armwrestling)</span>
+          <span style="font-size:13px;font-weight:700;color:var(--text-secondary);">Show as block (e.g. Armwrestling)</span>
         </label>
 
         <div id="tplExList"></div>
@@ -1199,7 +1537,7 @@ function openSingleTemplateEditor(templateName) {
 
     const list = sheet.querySelector('#tplExList');
     if (!tpl.exercises.length) {
-      list.innerHTML = `<div class="empty-state">Noch keine Exercises im Template.</div>`;
+      list.innerHTML = `<div class="empty-state">No exercises in this template yet.</div>`;
     }
     tpl.exercises.forEach((exItem, i) => {
       const row = document.createElement('div');
@@ -1223,7 +1561,7 @@ function openSingleTemplateEditor(templateName) {
     sheet.querySelector('#tplClose').addEventListener('click', () => sheet.remove());
 
     sheet.querySelector('#tplRenameBtn').addEventListener('click', async () => {
-      const newName = prompt('Neuer Template-Name:', templateName);
+      const newName = prompt('New template name:', templateName);
       if (!newName || !newName.trim()) return;
       const trimmed = newName.trim();
       if (trimmed === templateName) return;
@@ -1241,7 +1579,7 @@ function openSingleTemplateEditor(templateName) {
     });
 
     sheet.querySelector('#tplDeleteBtn').addEventListener('click', async () => {
-      if (!confirm(`Template "${templateName}" wirklich löschen?`)) return;
+      if (!confirm(`Delete template "${templateName}"?`)) return;
       await deleteTemplate(templateName);
       sheet.remove();
       openTemplateEditor();
@@ -1345,7 +1683,6 @@ async function renameExercise(workoutId, exIdx, newName) {
   } catch (e) { console.error(e); }
 }
 
-// ─── Pro-Übung: Werte vom letzten Mal übernehmen ───
 async function copyLastForExercise(w, exIdx) {
   if (!currentWorkoutId) return;
 
@@ -1356,7 +1693,6 @@ async function copyLastForExercise(w, exIdx) {
   if (!currentEx) return;
   const exName = currentEx.name;
 
-  // Finde letztes Workout (vor dem aktuellen) mit dieser Übung
   const curDate = freshW.date || '';
   const curCreated = String(freshW.created_at || '');
   let best = null;
@@ -1376,7 +1712,7 @@ async function copyLastForExercise(w, exIdx) {
   });
 
   if (!best || !Array.isArray(best.exercise.sets) || !best.exercise.sets.length) {
-    alert(`Kein früheres Workout mit "${exName}" gefunden.`);
+    alert(`No earlier workout with "${exName}" found.`);
     return;
   }
 
@@ -1384,7 +1720,7 @@ async function copyLastForExercise(w, exIdx) {
     (s.reps && s.reps !== '') || (s.kg && s.kg !== '') || (s.duration && s.duration !== '')
   );
   if (hasValue) {
-    if (!confirm(`Werte für "${exName}" aus Workout vom ${formatDate(best.workout.date)} übernehmen?\nBestehende Werte werden überschrieben.`)) return;
+    if (!confirm(`Copy values for "${exName}" from workout on ${formatDate(best.workout.date)}?\nExisting values will be overwritten.`)) return;
   }
 
   const exercises = JSON.parse(JSON.stringify(freshW.exercises || []));
@@ -1443,7 +1779,7 @@ function renderWorkoutDetail(id) {
           <option value="reps">Sets & Reps</option>
           <option value="duration">Time Based</option>
         </select>
-        <input class="text-input" id="newExGroup" placeholder="Superset Group (z.B. A, B)" style="flex:1;" />
+        <input class="text-input" id="newExGroup" placeholder="Superset Group (e.g. A, B)" style="flex:1;" />
       </div>
       <button class="btn-gold" id="addExBtn">ADD EXERCISE</button>
     </div>
@@ -1460,7 +1796,7 @@ function renderWorkoutDetail(id) {
       btn.innerHTML = `<span style="font-size:16px;">＋</span> <span style="flex:1;">${escapeHtml(name)}</span> <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${tpl.exercises.length} ex</span>`;
       btn.addEventListener('click', async () => {
         if (!tpl.exercises.length) {
-          alert(`"${name}" hat noch keine Übungen. Bearbeite das Template zuerst unter ✎ TEMPLATES.`);
+          alert(`"${name}" has no exercises yet. Edit the template first under ✎ TEMPLATES.`);
           return;
         }
         await saveAllInputs(w);
@@ -1497,7 +1833,7 @@ function renderWorkoutDetail(id) {
   });
 
   document.getElementById('deleteWBtn').addEventListener('click', async () => {
-    if (!confirm('Löschen?')) return;
+    if (!confirm('Delete?')) return;
     await supabase.from('workouts').delete().eq('id', w.id);
     workouts = workouts.filter(x => x.id !== w.id);
     currentWorkoutId = null;
@@ -1593,7 +1929,7 @@ async function saveAllInputs(workoutParam) {
     await patchWorkout(w.id, { exercises });
     hideSaving(true);
   } catch (e) {
-    console.error('Fehler beim Speichern:', e);
+    console.error('Save error:', e);
     hideSaving(false);
   }
 }
@@ -1655,7 +1991,7 @@ function renderExerciseCard(w, exItem, exIdx) {
         ${exItem.note ? `<div class="set-target" style="margin-top:6px;">${escapeHtml(exItem.note)}</div>` : ''}
       </div>
       <div class="exercise-actions">
-        <button class="ex-btn-last" data-copylast="${exIdx}" title="Werte vom letzten Mal übernehmen">↺</button>
+        <button class="ex-btn-last" data-copylast="${exIdx}" title="Copy values from last time">↺</button>
         <button class="remove-link" data-removeex="${exIdx}">REMOVE</button>
       </div>
     </div>
@@ -1878,7 +2214,7 @@ function openDayWorkoutPicker(workoutsForDay) {
   sheet.className = 'modal-sheet';
   sheet.innerHTML = `
     <div class="modal-inner">
-      <h3 class="modal-title">Workouts an diesem Tag</h3>
+      <h3 class="modal-title">Workouts on this day</h3>
       <div class="template-grid" id="dayPickList"></div>
       <button class="btn-outline" id="closeDayPick" style="width:100%;margin-top:16px;">CLOSE</button>
     </div>`;
@@ -1960,7 +2296,7 @@ function renderStatsFor(name) {
   });
 
   if (!sets.length) {
-    out.innerHTML = `<div class="empty-state">Noch keine Werte für „${escapeHtml(name)}“.</div>`;
+    out.innerHTML = `<div class="empty-state">No values for "${escapeHtml(name)}" yet.</div>`;
     return;
   }
 
@@ -1988,7 +2324,7 @@ function renderStatsFor(name) {
   if (hasWeight) {
     bestHtml += `
       <span class="best-item">🏆 Best KG: <strong>${maxKg > 0 ? maxKg : '—'}</strong></span>
-      <span class="best-item">🏆 Best Volumen: <strong>${maxVol > 0 ? Math.round(maxVol) : '—'}</strong></span>
+      <span class="best-item">🏆 Best Volume: <strong>${maxVol > 0 ? Math.round(maxVol) : '—'}</strong></span>
       <span class="best-item">🏆 Best 1RM: <strong>${max1RM > 0 ? Math.round(max1RM) : '—'}</strong></span>`;
   }
   if (hasReps) {
@@ -2001,20 +2337,20 @@ function renderStatsFor(name) {
   if (kgVals.length) html += statBlock('KG', kgVals);
   if (durVals.length) html += statBlock('Duration (sec)', durVals);
   if (best1RMSet) {
-    html += `<div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">💪 Best 1RM am ${formatDate(best1RMSet.date)}: ${Math.round(best1RMSet.kg)} kg × ${best1RMSet.reps} reps → ${Math.round(max1RM)} kg</div>`;
+    html += `<div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">💪 Best 1RM on ${formatDate(best1RMSet.date)}: ${Math.round(best1RMSet.kg)} kg × ${best1RMSet.reps} reps → ${Math.round(max1RM)} kg</div>`;
   }
 
   if (hasReps) {
     html += `
       <div class="chart-container">
-        <div class="chart-title">📈 Wiederholungen (Reps) pro Tag</div>
+        <div class="chart-title">📈 Reps per day</div>
         <canvas id="repsChart"></canvas>
       </div>`;
   }
   if (hasWeight) {
     html += `
       <div class="chart-container">
-        <div class="chart-title">🏋️ Mit Gewicht (KG · 1RM · Volumen)</div>
+        <div class="chart-title">🏋️ With weight (KG · 1RM · Volume)</div>
         <canvas id="weightChart"></canvas>
       </div>`;
   }
@@ -2041,7 +2377,7 @@ function renderStatsFor(name) {
           data: {
             labels: sortedDates.map(d => formatDate(d)),
             datasets: [
-              { label: 'Ø Reps', data: avgReps, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4, fill: true },
+              { label: 'Avg Reps', data: avgReps, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4, fill: true },
               { label: 'Max Reps', data: maxRepsData, borderColor: '#EF9548', backgroundColor: 'rgba(239,149,72,0.05)', tension: 0.2, pointRadius: 3, borderDash: [5, 4] }
             ]
           },
@@ -2078,9 +2414,9 @@ function renderStatsFor(name) {
           data: {
             labels: sortedDates.map(d => formatDate(d)),
             datasets: [
-              { label: 'Ø KG', data: kgData, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4 },
-              { label: 'Ø 1RM', data: oneRMData, borderColor: '#5FD08A', backgroundColor: 'rgba(95,208,138,0.1)', tension: 0.2, pointRadius: 4 },
-              { label: 'Ø Volumen', data: volumeData, borderColor: '#5B8DEF', backgroundColor: 'rgba(91,141,239,0.1)', tension: 0.2, pointRadius: 4, hidden: true }
+              { label: 'Avg KG', data: kgData, borderColor: '#E7BB4E', backgroundColor: 'rgba(231,187,78,0.1)', tension: 0.2, pointRadius: 4 },
+              { label: 'Avg 1RM', data: oneRMData, borderColor: '#5FD08A', backgroundColor: 'rgba(95,208,138,0.1)', tension: 0.2, pointRadius: 4 },
+              { label: 'Avg Volume', data: volumeData, borderColor: '#5B8DEF', backgroundColor: 'rgba(91,141,239,0.1)', tension: 0.2, pointRadius: 4, hidden: true }
             ]
           },
           options: {
@@ -2110,29 +2446,6 @@ function statBlock(label, arr) {
     </div>`;
 }
 function trim(n) { return Math.round(n * 10) / 10; }
-
-let timerSeconds = 0, timerRunning = false, timerInterval = null;
-function openTimer() { document.getElementById('timerOverlay').classList.remove('hidden'); }
-function closeTimer() { document.getElementById('timerOverlay').classList.add('hidden'); }
-function toggleTimer() {
-  timerRunning = !timerRunning;
-  document.getElementById('timerStartPause').textContent = timerRunning ? 'PAUSE' : 'START';
-  if (timerRunning) {
-    timerInterval = setInterval(() => { timerSeconds++; updateTimerDisplay(); }, 1000);
-  } else {
-    clearInterval(timerInterval);
-  }
-}
-function resetTimer() {
-  timerSeconds = 0; timerRunning = false; clearInterval(timerInterval);
-  document.getElementById('timerStartPause').textContent = 'START';
-  updateTimerDisplay();
-}
-function updateTimerDisplay() {
-  const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
-  const s = String(timerSeconds % 60).padStart(2, '0');
-  document.getElementById('timerDisplay').textContent = `${m}:${s}`;
-}
 
 function formatDate(iso) {
   if (!iso) return '';
