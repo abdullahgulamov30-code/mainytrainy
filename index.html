@@ -1224,7 +1224,10 @@ async function copyLastForExercise(w, exIdx) {
     target.sets[i].done = false;
   }
 
-  await saveAllInputs({ ...freshW, exercises });
+  // Direkt in Memory + DB speichern, OHNE saveAllInputs (das würde DOM-Werte überschreiben)
+  const idx = workouts.findIndex(x => x.id === freshW.id);
+  if (idx > -1) workouts[idx].exercises = exercises;
+  await supabase.from('workouts').update({ exercises }).eq('id', freshW.id);
   render();
 }
   function renderWorkoutDetail(id) {
